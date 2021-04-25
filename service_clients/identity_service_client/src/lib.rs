@@ -1,18 +1,15 @@
-use client_generator::operation;
 use client_generator::service;
 
 service!(
     IdentityService,
     "/identity_service",
-    [
+    [(
         CreateAccount,
-        UpdateProfile,
-        UpdateCredentials,
-        DeactivateAccount
-    ]
+        CreateAccountInput,
+        CreateAccountOutput,
+        CreateAccountError
+    ),]
 );
-
-operation!(CreateAccount, CreateAccountInput, CreateAccountOutput, void);
 
 pub struct CreateAccountInput {
     pub email: String,
@@ -21,4 +18,8 @@ pub struct CreateAccountInput {
 
 pub struct CreateAccountOutput {
     pub account_id: String,
+}
+
+enum CreateAccountError {
+    DuplicateAccount,
 }

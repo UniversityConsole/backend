@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 client_generator = { path = "../../client_generator" }
+service_client_runtime = { path = "../../service_client_runtime" }

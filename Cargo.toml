@@ -1,6 +1,7 @@
 [workspace]
 members = [
         "client_generator",
+        "service_client_runtime",
         "service_clients/identity_service_client",
         "services/identity_service",
 ]
