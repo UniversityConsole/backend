@@ -1,23 +1,16 @@
 use syn::parse::{Error, Result};
 use syn::spanned::Spanned;
-use syn::{Expr, Lit};
+use syn::{Expr, ExprPath, Ident, Lit, Member};
 
-pub fn get_identifier(expr: &Expr) -> Result<String> {
-    if let Expr::Path(ref expr_path) = expr {
-        if expr_path.path.leading_colon.is_some() {
-            return Err(Error::new(expr_path.span(), "expected unscoped identifier"));
-        }
-        if expr_path.path.segments.len() != 1 {
-            return Err(Error::new(expr_path.span(), "expected unscoped identifier"));
-        }
-
-        Ok(expr_path.path.segments.first().unwrap().ident.to_string())
+pub fn as_path(expr: &Expr) -> Result<&ExprPath> {
+    if let Expr::Path(expr_path) = &expr {
+        Ok(&expr_path)
     } else {
-        return Err(Error::new(expr.span(), "expected service name"));
+        Err(Error::new(expr.span(), "expected path"))
     }
 }
 
-pub fn get_str(expr: &Expr) -> Result<String> {
+pub fn as_str(expr: &Expr) -> Result<String> {
     if let Expr::Lit(ref expr_lit) = expr {
         if let Lit::Str(ref val) = &expr_lit.lit {
             Ok(val.value())
@@ -26,5 +19,13 @@ pub fn get_str(expr: &Expr) -> Result<String> {
         }
     } else {
         return Err(Error::new(expr.span(), "expected string literal"));
+    }
+}
+
+pub fn member_as_ident(expr: &Member) -> Result<&Ident> {
+    if let Member::Named(ident) = &expr {
+        Ok(&ident)
+    } else {
+        Err(Error::new(expr.span(), "expected named member"))
     }
 }

@@ -7,33 +7,72 @@ use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Error, Parse, ParseStream, Result};
-use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Expr, Token};
+use syn::{Expr, ExprStruct, Ident};
 
 pub struct ServiceDefinition {
     pub service_name: String,
     pub scope: String,
+    pub documentation: Option<String>,
     pub operations: Vec<Operation>,
+}
+
+enum ServiceFnParam {
+    Name,
+    HttpScope,
+    Documentation,
+    Operations,
+}
+
+struct InvalidServiceParam<'a>(&'a Ident);
+
+impl ServiceFnParam {
+    fn from_ident(value: &Ident) -> std::result::Result<Self, InvalidServiceParam> {
+        let value_str = &value.to_string();
+        match value_str.as_str() {
+            "name" => Ok(ServiceFnParam::Name),
+            "http_scope" => Ok(ServiceFnParam::HttpScope),
+            "documentation" => Ok(ServiceFnParam::Documentation),
+            "operations" => Ok(ServiceFnParam::Operations),
+            _ => Err(InvalidServiceParam(&value)),
+        }
+    }
 }
 
 impl Parse for ServiceDefinition {
     fn parse(input: ParseStream) -> Result<Self> {
-        let params = Punctuated::<Expr, Token![,]>::parse_separated_nonempty(&input)?;
-        if params.len() != 3 {
-            return Err(Error::new(
-                input.span(),
-                "expected arguments: service_name, scope, operations",
-            ));
-        }
+        let params: ExprStruct = input.parse()?;
 
-        let service_name = token_utils::get_identifier(&params[0])?;
-        let scope = token_utils::get_str(&params[1])?;
-        let operations = parse_operations(&params[2])?;
+        let mut service_name = String::from("");
+        let mut http_scope = String::from("");
+        let mut documentation = None;
+        let mut operations = vec![];
+
+        for field in params.fields.iter() {
+            let name = token_utils::member_as_ident(&field.member)?;
+            let name = ServiceFnParam::from_ident(&name)
+                .map_err(|e| Error::new(e.0.span(), "unknown service parameter"))?;
+
+            match &name {
+                &ServiceFnParam::Name => {
+                    service_name = token_utils::as_str(&field.expr)?;
+                }
+                &ServiceFnParam::HttpScope => {
+                    http_scope = token_utils::as_str(&field.expr)?;
+                }
+                &ServiceFnParam::Documentation => {
+                    documentation = Some(token_utils::as_str(&field.expr)?);
+                }
+                &ServiceFnParam::Operations => {
+                    operations = parse_operations(&field.expr)?;
+                }
+            }
+        }
 
         Ok(ServiceDefinition {
             service_name,
-            scope,
+            scope: http_scope,
+            documentation,
             operations,
         })
     }
@@ -50,21 +89,13 @@ fn parse_operations(expr: &Expr) -> Result<Vec<Operation>> {
     if items.elems.len() == 0 {
         return Err(Error::new(
             expr.span(),
-            "service does not expose any operations",
+            "service does not declare any operations",
         ));
     }
 
     let mut ops = Vec::<Operation>::new();
     for item in items.elems.iter() {
-        let op_expr = {
-            if let Expr::Tuple(tup) = &item {
-                tup
-            } else {
-                return Err(Error::new(item.span(), "operation must be a tuple"));
-            }
-        };
-
-        let op = crate::operation::from_tuple_expr(&op_expr)?;
+        let op = crate::operation::from_expr(&item)?;
         ops.push(op);
     }
 
@@ -76,9 +107,20 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
         service_name,
         scope,
         operations,
+        documentation,
     } = definition;
     let service_client_name = format_ident!("{}Client", service_name);
     let operations_clients = operations.iter().map(create_op_client);
+    let documentation = if let Some(doc_str) = &documentation {
+        quote! {
+            #[doc=#doc_str]
+        }
+    } else {
+        let default_doc = format!("Client for {}", &service_name);
+        quote! {
+            #[doc=#default_doc]
+        }
+    };
 
     let all_kinds: [OpTypeKind; 3] = [OpTypeKind::Input, OpTypeKind::Output, OpTypeKind::Error];
     let mut empty_structs = vec![];
@@ -87,6 +129,7 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
     }
 
     let service_client = quote! {
+        #documentation
         struct #service_client_name {}
 
         impl #service_client_name {
@@ -112,7 +155,19 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_result = get_op_result(&op);
     let op_input = op.input_type();
     let op_output = op.output_type();
+    let op_doc = if let Some(doc_str) = &op.documentation {
+        quote! {
+            #[doc = #doc_str]
+        }
+    } else {
+        let default_doc = format!("Execute service operatin {}", &op.name);
+        quote! {
+            #[doc = #default_doc]
+        }
+    };
+
     quote! {
+        #op_doc
         pub async fn #op_fn_name(_: &#op_input) -> #op_result {
             Ok(#op_output {})
         }

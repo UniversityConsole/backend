@@ -2,15 +2,42 @@ extern crate proc_macro;
 
 use crate::token_utils;
 use quote::{format_ident, quote, IdentFragment};
+use std::default::Default;
 use syn::parse::{Error, Result};
-use syn::spanned::Spanned;
-use syn::ExprTuple;
+use syn::{Expr, ExprStruct, Ident, Path};
 
+#[derive(Default)]
 pub struct Operation {
     pub name: String,
-    pub input: Option<String>,
-    pub output: Option<String>,
-    pub error: Option<String>,
+    pub documentation: Option<String>,
+    pub input: Option<Path>,
+    pub output: Option<Path>,
+    pub error: Option<Path>,
+}
+
+#[non_exhaustive]
+pub enum OperationFnParam {
+    Name,
+    Documentation,
+    Input,
+    Output,
+    Error,
+}
+
+pub struct InvalidOperationParam<'a>(&'a Ident);
+
+impl OperationFnParam {
+    pub fn from_ident(ident: &Ident) -> std::result::Result<Self, InvalidOperationParam> {
+        let ident_str = &ident.to_string();
+        match ident_str.as_str() {
+            "name" => Ok(OperationFnParam::Name),
+            "documentation" => Ok(OperationFnParam::Documentation),
+            "input" => Ok(OperationFnParam::Input),
+            "output" => Ok(OperationFnParam::Output),
+            "error" => Ok(OperationFnParam::Error),
+            _ => Err(InvalidOperationParam(&ident)),
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -55,31 +82,31 @@ impl Operation {
         }
     }
 
-    pub(crate) fn input_type(&self) -> proc_macro2::Ident {
+    pub(crate) fn input_type(&self) -> Path {
         if self.needs_empty_type(OpTypeKind::Input) {
-            self.empty_type_name(OpTypeKind::Input)
+            self.empty_type_name(OpTypeKind::Input).into()
         } else {
-            format_ident!("{}", self.input.as_ref().unwrap())
+            self.input.clone().unwrap()
         }
     }
 
-    pub(crate) fn output_type(&self) -> proc_macro2::Ident {
+    pub(crate) fn output_type(&self) -> Path {
         if self.needs_empty_type(OpTypeKind::Output) {
-            self.empty_type_name(OpTypeKind::Output)
+            self.empty_type_name(OpTypeKind::Output).into()
         } else {
-            format_ident!("{}", self.output.as_ref().unwrap())
+            self.output.clone().unwrap()
         }
     }
 
-    pub(crate) fn error_type(&self) -> proc_macro2::Ident {
+    pub(crate) fn error_type(&self) -> Path {
         if self.needs_empty_type(OpTypeKind::Error) {
-            self.empty_type_name(OpTypeKind::Error)
+            self.empty_type_name(OpTypeKind::Error).into()
         } else {
-            format_ident!("{}", self.error.as_ref().unwrap())
+            self.error.clone().unwrap()
         }
     }
 
-    fn type_for_kind(&self, kind: OpTypeKind) -> proc_macro2::Ident {
+    fn type_for_kind(&self, kind: OpTypeKind) -> Path {
         match kind {
             OpTypeKind::Input => self.input_type(),
             OpTypeKind::Output => self.output_type(),
@@ -88,48 +115,37 @@ impl Operation {
     }
 }
 
-pub fn from_tuple_expr(expr: &ExprTuple) -> Result<Operation> {
-    if expr.elems.len() != 4 {
-        return Err(Error::new(
-            expr.span(),
-            "expected tuple (name, input_type, output_type, error_type)",
-        ));
+pub fn from_expr(expr: &Expr) -> Result<Operation> {
+    let mut op = Operation::default();
+
+    // TODO Find a way not to convert back to TokenStream
+    let token_stream = quote! { #expr };
+    let expr: ExprStruct = syn::parse2(token_stream)?;
+
+    for field in &expr.fields {
+        let name = token_utils::member_as_ident(&field.member)?;
+        let name = OperationFnParam::from_ident(&name)
+            .map_err(|e| Error::new(e.0.span(), "unknown operation parameter"))?;
+        match name {
+            OperationFnParam::Name => {
+                op.name = token_utils::as_str(&field.expr)?;
+            }
+            OperationFnParam::Documentation => {
+                op.documentation = Some(token_utils::as_str(&field.expr)?);
+            }
+            OperationFnParam::Input => {
+                op.input = Some(token_utils::as_path(&field.expr)?.path.clone());
+            }
+            OperationFnParam::Output => {
+                op.output = Some(token_utils::as_path(&field.expr)?.path.clone());
+            }
+            OperationFnParam::Error => {
+                op.error = Some(token_utils::as_path(&field.expr)?.path.clone());
+            }
+        }
     }
 
-    let params = &expr.elems;
-
-    let operation_name = token_utils::get_identifier(&params[0])?;
-    let input = {
-        let ident = token_utils::get_identifier(&params[1])?;
-        if ident == "void" {
-            None
-        } else {
-            Some(ident)
-        }
-    };
-    let output = {
-        let ident = token_utils::get_identifier(&params[2])?;
-        if ident == "void" {
-            None
-        } else {
-            Some(ident)
-        }
-    };
-    let error = {
-        let ident = token_utils::get_identifier(&params[3])?;
-        if ident == "void" {
-            None
-        } else {
-            Some(ident)
-        }
-    };
-
-    Ok(Operation {
-        name: operation_name,
-        input,
-        output,
-        error,
-    })
+    Ok(op)
 }
 
 pub fn create_empty_struct(op: &Operation, kind: &OpTypeKind) -> proc_macro2::TokenStream {
