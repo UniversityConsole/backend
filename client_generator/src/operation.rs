@@ -43,7 +43,6 @@ impl OperationFnParam {
 #[derive(Copy, Clone)]
 pub enum OpTypeKind {
     Input,
-    Output,
     Error,
 }
 
@@ -51,7 +50,6 @@ impl ToString for OpTypeKind {
     fn to_string(&self) -> String {
         match self {
             Self::Input => "Input",
-            Self::Output => "Output",
             Self::Error => "Error",
         }
         .to_string()
@@ -68,7 +66,6 @@ impl Operation {
     fn empty_type_name(&self, kind: OpTypeKind) -> proc_macro2::Ident {
         let suffix = match kind {
             OpTypeKind::Input => "Input",
-            OpTypeKind::Output => "Output",
             OpTypeKind::Error => "Error",
         };
         format_ident!("{}Empty{}", &self.name, suffix)
@@ -77,7 +74,6 @@ impl Operation {
     fn needs_empty_type(&self, kind: OpTypeKind) -> bool {
         match kind {
             OpTypeKind::Input => self.input.is_none(),
-            OpTypeKind::Output => self.output.is_none(),
             OpTypeKind::Error => self.output.is_none(),
         }
     }
@@ -87,14 +83,6 @@ impl Operation {
             self.empty_type_name(OpTypeKind::Input).into()
         } else {
             self.input.clone().unwrap()
-        }
-    }
-
-    pub(crate) fn output_type(&self) -> Path {
-        if self.needs_empty_type(OpTypeKind::Output) {
-            self.empty_type_name(OpTypeKind::Output).into()
-        } else {
-            self.output.clone().unwrap()
         }
     }
 
@@ -109,7 +97,6 @@ impl Operation {
     fn type_for_kind(&self, kind: OpTypeKind) -> Path {
         match kind {
             OpTypeKind::Input => self.input_type(),
-            OpTypeKind::Output => self.output_type(),
             OpTypeKind::Error => self.error_type(),
         }
     }

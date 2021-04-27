@@ -8,7 +8,6 @@ service!(Service {
     operations: [Operation {
         name: "CreateAccount",
         input: CreateAccountInput,
-        output: CreateAccountOutput,
         error: CreateAccountError,
         documentation: "Create a new user account.",
     },],
@@ -17,10 +16,6 @@ service!(Service {
 pub struct CreateAccountInput {
     pub email: String,
     pub name: String,
-}
-
-pub struct CreateAccountOutput {
-    pub account_id: String,
 }
 
 enum CreateAccountError {

@@ -122,7 +122,7 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
         }
     };
 
-    let all_kinds: [OpTypeKind; 3] = [OpTypeKind::Input, OpTypeKind::Output, OpTypeKind::Error];
+    let all_kinds: [OpTypeKind; 2] = [OpTypeKind::Input, OpTypeKind::Error];
     let mut empty_structs = vec![];
     for op in operations {
         empty_structs.extend(all_kinds.iter().map(|kind| create_empty_struct(&op, &kind)));
@@ -154,7 +154,6 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_fn_name = format_ident!("{}", op.name.to_case(Case::Snake));
     let op_result = get_op_result(&op);
     let op_input = op.input_type();
-    let op_output = op.output_type();
     let op_doc = if let Some(doc_str) = &op.documentation {
         quote! {
             #[doc = #doc_str]
@@ -169,13 +168,17 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     quote! {
         #op_doc
         pub async fn #op_fn_name(_: &#op_input) -> #op_result {
-            Ok(#op_output {})
+
         }
     }
 }
 
 fn get_op_result(op: &Operation) -> proc_macro2::TokenStream {
-    let output = op.output_type();
+    let output = if let Some(ty) = &op.output {
+        quote! { #ty }
+    } else {
+        quote! { () }
+    };
     let error = op.error_type();
     quote! {
         std::result::Result<#output, #error>
