@@ -1,5 +1,6 @@
 #[macro_use]
 use client_generator::service;
+use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
 
 service!(Service {
     name: "IdentityService",
@@ -12,12 +13,3 @@ service!(Service {
         documentation: "Create a new user account.",
     },],
 });
-
-pub struct CreateAccountInput {
-    pub email: String,
-    pub name: String,
-}
-
-enum CreateAccountError {
-    DuplicateAccount,
-}
