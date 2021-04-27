@@ -1,7 +1,6 @@
 extern crate proc_macro;
 
 use crate::operation::Operation;
-use crate::operation::{create_empty_struct, OpTypeKind};
 use crate::token_utils;
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
@@ -122,12 +121,6 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
         }
     };
 
-    let all_kinds: [OpTypeKind; 2] = [OpTypeKind::Input, OpTypeKind::Error];
-    let mut empty_structs = vec![];
-    for op in operations {
-        empty_structs.extend(all_kinds.iter().map(|kind| create_empty_struct(&op, &kind)));
-    }
-
     let service_client = quote! {
         #documentation
         struct #service_client_name {}
@@ -143,8 +136,6 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
 
             #(#operations_clients)*
         }
-
-        #(#empty_structs)*
     };
 
     TokenStream::from(service_client)
@@ -153,11 +144,10 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
 fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_fn_name = format_ident!("{}", op.name.to_case(Case::Snake));
     let op_result = get_op_result(&op);
-    let op_input = if let Some(input_ty) = &op.input {
-        quote! { input: &#input_ty }
-    } else {
-        proc_macro2::TokenStream::new()
-    };
+    let op_input = &op.input.as_ref().map_or(
+        proc_macro2::TokenStream::new(),
+        |input_ty| quote!(input: &#input_ty),
+    );
     let op_doc = if let Some(doc_str) = &op.documentation {
         quote! {
             #[doc = #doc_str]
@@ -178,12 +168,8 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
 }
 
 fn get_op_result(op: &Operation) -> proc_macro2::TokenStream {
-    let output = if let Some(ty) = &op.output {
-        quote! { #ty }
-    } else {
-        quote! { () }
-    };
-    let error = op.error_type();
+    let output = &op.output.as_ref().map_or(quote!(()), |ty| quote!(#ty));
+    let error = &op.error;
     quote! {
         std::result::Result<#output, #error>
     }

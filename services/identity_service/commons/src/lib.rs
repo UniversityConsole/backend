@@ -1,4 +1,7 @@
 mod create_account;
-pub use create_account::CreateAccountError;
-pub use create_account::CreateAccountInput;
-pub use create_account::CreateAccountOutput;
+mod update_account;
+mod update_credentials;
+
+pub use create_account::*;
+pub use update_account::*;
+pub use update_credentials::*;

@@ -1,18 +1,19 @@
 extern crate proc_macro;
 
 use crate::token_utils;
-use quote::{format_ident, quote, IdentFragment};
+use quote::quote;
 use std::default::Default;
 use syn::parse::{Error, Result};
-use syn::{Expr, ExprStruct, Ident, Path};
+use syn::punctuated::Punctuated;
+use syn::token::Colon2;
+use syn::{Expr, ExprStruct, Ident, Path, PathSegment};
 
-#[derive(Default)]
 pub struct Operation {
     pub name: String,
     pub documentation: Option<String>,
     pub input: Option<Path>,
     pub output: Option<Path>,
-    pub error: Option<Path>,
+    pub error: Path,
 }
 
 #[non_exhaustive]
@@ -26,6 +27,21 @@ pub enum OperationFnParam {
 
 pub struct InvalidOperationParam<'a>(&'a Ident);
 
+impl Default for Operation {
+    fn default() -> Self {
+        Operation {
+            name: String::default(),
+            documentation: None,
+            input: None,
+            output: None,
+            error: Path {
+                leading_colon: None,
+                segments: Punctuated::<PathSegment, Colon2>::default(),
+            },
+        }
+    }
+}
+
 impl OperationFnParam {
     pub fn from_ident(ident: &Ident) -> std::result::Result<Self, InvalidOperationParam> {
         let ident_str = &ident.to_string();
@@ -36,68 +52,6 @@ impl OperationFnParam {
             "output" => Ok(OperationFnParam::Output),
             "error" => Ok(OperationFnParam::Error),
             _ => Err(InvalidOperationParam(&ident)),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum OpTypeKind {
-    Input,
-    Error,
-}
-
-impl ToString for OpTypeKind {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Input => "Input",
-            Self::Error => "Error",
-        }
-        .to_string()
-    }
-}
-
-impl IdentFragment for OpTypeKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
-impl Operation {
-    fn empty_type_name(&self, kind: OpTypeKind) -> proc_macro2::Ident {
-        let suffix = match kind {
-            OpTypeKind::Input => "Input",
-            OpTypeKind::Error => "Error",
-        };
-        format_ident!("{}Empty{}", &self.name, suffix)
-    }
-
-    fn needs_empty_type(&self, kind: OpTypeKind) -> bool {
-        match kind {
-            OpTypeKind::Input => self.input.is_none(),
-            OpTypeKind::Error => self.output.is_none(),
-        }
-    }
-
-    pub(crate) fn input_type(&self) -> Path {
-        if self.needs_empty_type(OpTypeKind::Input) {
-            self.empty_type_name(OpTypeKind::Input).into()
-        } else {
-            self.input.clone().unwrap()
-        }
-    }
-
-    pub(crate) fn error_type(&self) -> Path {
-        if self.needs_empty_type(OpTypeKind::Error) {
-            self.empty_type_name(OpTypeKind::Error).into()
-        } else {
-            self.error.clone().unwrap()
-        }
-    }
-
-    fn type_for_kind(&self, kind: OpTypeKind) -> Path {
-        match kind {
-            OpTypeKind::Input => self.input_type(),
-            OpTypeKind::Error => self.error_type(),
         }
     }
 }
@@ -127,21 +81,10 @@ pub fn from_expr(expr: &Expr) -> Result<Operation> {
                 op.output = Some(token_utils::as_path(&field.expr)?.path.clone());
             }
             OperationFnParam::Error => {
-                op.error = Some(token_utils::as_path(&field.expr)?.path.clone());
+                op.error = token_utils::as_path(&field.expr)?.path.clone();
             }
         }
     }
 
     Ok(op)
-}
-
-pub fn create_empty_struct(op: &Operation, kind: &OpTypeKind) -> proc_macro2::TokenStream {
-    if !op.needs_empty_type(kind.clone()) {
-        return proc_macro2::TokenStream::new();
-    }
-
-    let name = op.type_for_kind(kind.clone());
-    quote! {
-        struct #name {}
-    }
 }

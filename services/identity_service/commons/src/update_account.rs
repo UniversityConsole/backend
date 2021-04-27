@@ -1,4 +1,4 @@
-pub struct CreateAccountInput {
+pub struct UpdateAccountInput {
     pub email: String,
     pub first_name: String,
     pub last_name: String,
@@ -6,10 +6,12 @@ pub struct CreateAccountInput {
     pub password: String,
 }
 
-pub struct CreateAccountOutput {
+pub struct UpdateAccountOutput {
     pub account_id: String,
 }
-pub enum CreateAccountError {
-    DuplicateAccount,
+
+pub enum UpdateAccountError {
+    AccountNotFound,
+    InvalidParameter,
     InternalError,
 }
