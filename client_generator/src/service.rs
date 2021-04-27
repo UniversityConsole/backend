@@ -153,7 +153,11 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
 fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_fn_name = format_ident!("{}", op.name.to_case(Case::Snake));
     let op_result = get_op_result(&op);
-    let op_input = op.input_type();
+    let op_input = if let Some(input_ty) = &op.input {
+        quote! { input: &#input_ty }
+    } else {
+        proc_macro2::TokenStream::new()
+    };
     let op_doc = if let Some(doc_str) = &op.documentation {
         quote! {
             #[doc = #doc_str]
@@ -167,7 +171,7 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
 
     quote! {
         #op_doc
-        pub async fn #op_fn_name(_: &#op_input) -> #op_result {
+        pub async fn #op_fn_name(#op_input) -> #op_result {
 
         }
     }
