@@ -1,0 +1,15 @@
+version: 0.2
+phases:
+  build:
+    commands:
+      - cargo build --target-dir target --release
+  post_build:
+    commands:
+      - .codebuild/gen_lambda_artifacts.sh -i target/release -o bin
+artifacts:
+  discard-paths: yes
+  files:
+    - bin/*
+cache:
+  paths:
+    - target/**/*
