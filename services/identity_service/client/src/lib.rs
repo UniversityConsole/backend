@@ -4,6 +4,7 @@ use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
 use commons::{UpdateAccountError, UpdateAccountInput, UpdateAccountOutput};
 use commons::{UpdateCredentialsError, UpdateCredentialsInput};
 
+/*
 service!(Service {
     name: "IdentityService",
     http_scope: "/identity_service",
@@ -31,3 +32,4 @@ service!(Service {
         },
     ],
 });
+ */
