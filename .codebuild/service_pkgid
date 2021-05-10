@@ -10,22 +10,21 @@ def main():
         os.sys.exit(-1)
 
     service_name = os.sys.argv[1]
-    cmd = ['cargo', 'metadata', '--no-deps', '--format-version', '1']
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p:
-        data_raw = p.stdout.read()
-        meta = json.loads(data_raw)
-        service_crate = None
+    cargo_metadata_cmd = ['cargo', 'metadata', '--no-deps', '--format-version', '1']
+    p = subprocess.run(cargo_metadata_cmd, capture_output=True, text=True)
+    meta = json.loads(p.stdout)
+    service_crate = None
 
-        for package in meta['packages']:
-            if package['metadata'] == None:
-                continue
+    for package in meta['packages']:
+        if package['metadata'] == None:
+            continue
 
-            if package['metadata']['service_name'] == service_name:
-                service_crate = package
-                break
+        if package['metadata']['service_name'] == service_name:
+            service_crate = package
+            break
 
-        pkgid = service_crate['id'].split(' ', 1)[0]
-        print(pkgid)
+    pkgid = service_crate['id'].split(' ', 1)[0]
+    print(pkgid)
 
 
 if __name__ == '__main__':
