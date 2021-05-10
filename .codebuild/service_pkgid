@@ -11,7 +11,7 @@ def main():
 
     service_name = os.sys.argv[1]
     cmd = ['cargo', 'metadata', '--no-deps', '--format-version', '1']
-    with subprocess.Popen(cmd, encoding='utf-8', stdout=subprocess.PIPE) as p:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as p:
         data_raw = p.stdout.read()
         meta = json.loads(data_raw)
         service_crate = None
