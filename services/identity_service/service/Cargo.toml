@@ -1,5 +1,5 @@
 [package]
-name = "service"
+name = "identity_service_lambda"
 version = "0.1.0"
 edition = "2018"
 
@@ -12,3 +12,4 @@ commons = { path = "../commons" }
 
 [package.metadata]
 artifact_type = "lambda_bootstrap"
+service_name = "identity_service"
