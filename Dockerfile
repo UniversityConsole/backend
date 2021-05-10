@@ -1,25 +1,18 @@
-FROM amazonlinux:2018.03.0.20201028.0
+FROM amazonlinux:2018.03.0.20210408.0
 
 ENV _TOOL_PACKAGES="\
   autoconf \
   automake \
-  bash-completion \
-  cmake \
-  curl \
   file \
   gcc \
   git \
   jq \
   libtool \
   make \
-  man \
-  man-pages \
   pcre-tools \
   pkgconfig \
-  python-pip \
-  python34-pip \
+  python38 \
   sudo \
-  tree \
   unzip \
   wget \
   which \
@@ -39,17 +32,16 @@ ENV _DEVEL_PACKAGES="\
   libcurl-devel \
   libffi-devel \
   pcre-devel \
-  python-devel \
-  python34-devel \
   xz-devel \
   zlib-devel \
   "
 
-# upgrade all packages, install epel, then install build requirements
-RUN yum upgrade -y > /dev/null && \
-  yum install -y epel-release >/dev/null && \
-  yum install -y ${_TOOL_PACKAGES} ${_STATIC_PACKAGES} ${_DEVEL_PACKAGES} && \
-  yum clean all
+RUN yum upgrade -y > /dev/null
+RUN yum install -y epel-release >/dev/null
+RUN yum install -y ${_TOOL_PACKAGES} ${_STATIC_PACKAGES} ${_DEVEL_PACKAGES}
+RUN yum clean all
+
+RUN python --version
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH=$PATH:~/.cargo/bin
