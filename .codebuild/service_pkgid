@@ -10,8 +10,8 @@ def main():
         os.sys.exit(-1)
 
     service_name = os.sys.argv[1]
-    cargo_metadata_cmd = ['cargo', 'metadata', '--no-deps', '--format-version', '1']
-    p = subprocess.run(cargo_metadata_cmd, capture_output=True, text=True, env=os.environ)
+    cmd = 'cargo metadata --no-deps --format-version 1'
+    p = subprocess.run(cmd, capture_output=True, text=True, shell=True)
     meta = json.loads(p.stdout)
     service_crate = None
 
