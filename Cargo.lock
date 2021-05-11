@@ -266,6 +266,8 @@ version = "0.1.0"
 dependencies = [
  "commons",
  "lambda_http",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
