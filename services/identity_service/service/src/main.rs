@@ -3,9 +3,8 @@ extern crate log;
 
 use std::{collections::HashMap, env};
 
-use lambda_http::{IntoResponse, Request, handler, http::Method};
+use lambda_http::{IntoResponse, Request, handler, http::Method, Response};
 use lambda_http::lambda_runtime::{self, Context};
-use serde::{Serialize, Deserialize};
 use simple_logger::SimpleLogger;
 use log::LevelFilter;
 
@@ -25,41 +24,18 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-struct IntegrationResponse {
-    cookies: Vec<String>,
-    #[serde(rename = "isBase64Encoded")]
-    is_base64_encoded: bool,
-    body: Option<String>,
-    #[serde(rename = "statusCode")]
-    status_code: u16,
-    headers: HashMap<String, String>,
-}
-
-impl Default for IntegrationResponse {
-    fn default() -> Self {
-        IntegrationResponse {
-            cookies: Vec::new(),
-            is_base64_encoded: false,
-            body: None,
-            status_code: 200,
-            headers: HashMap::new(),
-        }
-    }
-}
-
-fn error_response<'a>(message: &'a str, status_code: u16) -> String {
+fn error_response<'a>(message: &'a str, status_code: u16) -> Response<String> {
     let message_body = {
         let mut b = HashMap::new();
         b.insert("Message", message);
         b
     };
 
-    serde_json::to_string(&IntegrationResponse {
-        status_code,
-        body: Some(serde_json::to_string(&message_body).unwrap()),
-        ..IntegrationResponse::default()
-    }).unwrap()
+    Response::builder()
+        .status(status_code)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&message_body).unwrap())
+        .unwrap()
 }
 
 async fn process_request(request: Request, _: Context) -> Result<impl IntoResponse, Error> {
@@ -78,6 +54,15 @@ async fn process_request(request: Request, _: Context) -> Result<impl IntoRespon
     }
 }
 
-async fn list_accounts(_request: &Request) -> Result<String, Error> {
-    Ok("ListAccounts".to_string())
+async fn list_accounts(_request: &Request) -> Result<Response<String>, Error> {
+    let body = {
+        let mut b = HashMap::new();
+        b.insert("Operation", "ListAccounts");
+        b
+    };
+
+    Ok(Response::builder()
+        .status(200)
+        .body(serde_json::to_string(&body).unwrap())
+        .unwrap())
 }
