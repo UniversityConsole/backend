@@ -1,9 +1,10 @@
 extern crate simple_logger;
 extern crate log;
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, convert::TryInto, env};
 
-use lambda_http::{IntoResponse, Request, handler, http::Method, Response};
+use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
+use lambda_http::{Body, IntoResponse, Request, Response, handler, http::Method};
 use lambda_http::lambda_runtime::{self, Context};
 use simple_logger::SimpleLogger;
 use log::LevelFilter;
@@ -16,6 +17,7 @@ async fn main() -> Result<(), Error> {
     let log_level = if debug_enabled { LevelFilter::Debug } else { LevelFilter::Info };
 
     SimpleLogger::new()
+        .with_level(LevelFilter::Info)
         .with_module_level(module_path!(), log_level)
         .init()
         .unwrap();
@@ -24,7 +26,7 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn error_response<'a>(message: &'a str, status_code: u16) -> Response<String> {
+fn error_response<'a>(message: &'a str, status_code: u16) -> Response<Body> {
     let message_body = {
         let mut b = HashMap::new();
         b.insert("Message", message);
@@ -34,7 +36,7 @@ fn error_response<'a>(message: &'a str, status_code: u16) -> Response<String> {
     Response::builder()
         .status(status_code)
         .header("Content-Type", "application/json")
-        .body(serde_json::to_string(&message_body).unwrap())
+        .body(Body::from(serde_json::to_string(&message_body).unwrap()))
         .unwrap()
 }
 
@@ -44,25 +46,33 @@ async fn process_request(request: Request, _: Context) -> Result<impl IntoRespon
     let method = request.method();
     let uri = &request.uri().path()[URI_SCOPE.len()..];
 
-    log::debug!("Got raw URI: {}", &request.uri());
-    log::debug!("Processed URI: {}", &uri);
-    log::debug!("Got method: {}", &method);
+    let executor = match (method, uri) {
+        (&Method::POST, "/accounts") => Some(&create_account),
+        _ => None,
+    };
 
-    match (method, uri) {
-        (&Method::GET, "/accounts") => list_accounts(&request).await,
-        _ => Ok(error_response("Unknown operation.", 400))
+    if executor.is_none() {
+        return Ok(error_response("Unknown operation.", 400));
+    }
+
+    let executor = executor.unwrap();
+    let result = executor(&request).await;
+    match result {
+        Ok(output) => Ok(output.into_response()),
+        Err(err) => Ok(err.into_response()),
     }
 }
 
-async fn list_accounts(_request: &Request) -> Result<Response<String>, Error> {
-    let body = {
-        let mut b = HashMap::new();
-        b.insert("Operation", "ListAccounts");
-        b
-    };
+async fn create_account(req: &Request) -> Result<CreateAccountOutput, CreateAccountError> {
+    let input: CreateAccountInput = req
+        .try_into()
+        .map_err(|_| CreateAccountError::BadRequest)?;
 
-    Ok(Response::builder()
-        .status(200)
-        .body(serde_json::to_string(&body).unwrap())
-        .unwrap())
+    if input.first_name == "Igor" {
+        return Err(CreateAccountError::DuplicateAccount);
+    }
+
+    Ok(CreateAccountOutput {
+        account_id: String::from("61676afb-0be3-4ef8-955a-51ac8a9e20f8"),
+    })
 }
