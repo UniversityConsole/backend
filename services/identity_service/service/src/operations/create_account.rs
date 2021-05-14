@@ -2,7 +2,8 @@
 
 use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
 use lambda_http::Request;
-use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, PutItemInput};
+use rusoto_core::RusotoError;
+use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, PutItemInput, PutItemError};
 use std::{collections::HashMap, convert::TryInto, env};
 use uuid::Uuid;
 use bytes::Bytes;
@@ -78,13 +79,19 @@ pub async fn create_account(req: &Request) -> Result<CreateAccountOutput, Create
     dynamodb_client.put_item(PutItemInput{
         item: account_doc.as_hashmap(),
         table_name: accounts_datastore_name,
+        condition_expression: Some("attribute_not_exists(Email) and attribute_not_exists(AccountId)".to_string()),
         ..PutItemInput::default()
     })
                    .await
-                   .map_err(|err| {
-                       log::error!("Failed creating item in DynamoDB: {:?}", err);
-                       CreateAccountError::InternalError
-                   })?;
+                   .map_err(|err| match err {
+                        RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) => {
+                            CreateAccountError::DuplicateAccount
+                        }
+                        _ => {
+                            log::error!("Failed creating item in DynamoDB: {:?}", err);
+                            CreateAccountError::InternalError
+                        }
+                    })?;
 
     Ok(CreateAccountOutput {
         account_id: account_doc.account_id.to_hyphenated().to_string(),
