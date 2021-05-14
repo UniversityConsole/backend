@@ -1,9 +1,10 @@
+mod operations;
+
 extern crate simple_logger;
 extern crate log;
 
-use std::{collections::HashMap, convert::TryInto, env};
+use std::{collections::HashMap, env};
 
-use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
 use lambda_http::{Body, IntoResponse, Request, Response, handler, http::Method};
 use lambda_http::lambda_runtime::{self, Context};
 use simple_logger::SimpleLogger;
@@ -47,7 +48,7 @@ async fn process_request(request: Request, _: Context) -> Result<impl IntoRespon
     let uri = &request.uri().path()[URI_SCOPE.len()..];
 
     let executor = match (method, uri) {
-        (&Method::POST, "/accounts") => Some(&create_account),
+        (&Method::POST, "/accounts") => Some(&crate::operations::create_account),
         _ => None,
     };
 
@@ -63,16 +64,3 @@ async fn process_request(request: Request, _: Context) -> Result<impl IntoRespon
     }
 }
 
-async fn create_account(req: &Request) -> Result<CreateAccountOutput, CreateAccountError> {
-    let input: CreateAccountInput = req
-        .try_into()
-        .map_err(|_| CreateAccountError::BadRequest)?;
-
-    if input.first_name == "Igor" {
-        return Err(CreateAccountError::DuplicateAccount);
-    }
-
-    Ok(CreateAccountOutput {
-        account_id: String::from("61676afb-0be3-4ef8-955a-51ac8a9e20f8"),
-    })
-}

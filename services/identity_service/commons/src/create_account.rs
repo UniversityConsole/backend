@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use lambda_http::{Request, Response, IntoResponse, Body};
 use simple_error::SimpleError;
+use serde_json::json;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -56,7 +57,9 @@ impl IntoResponse for CreateAccountOutput {
 
 impl IntoResponse for CreateAccountError {
     fn into_response(self) -> Response<Body> {
-        let body = serde_json::to_string(&self).unwrap();
+        let body = json!({
+            "Message": self
+        }).to_string();
         let status_code = match self {
             CreateAccountError::BadRequest => 400,
             CreateAccountError::DuplicateAccount => 400,
@@ -65,7 +68,7 @@ impl IntoResponse for CreateAccountError {
         Response::builder()
             .status(status_code)
             .header("Content-Type", "application/json")
-            .body(Body::Text(body))
+            .body(Body::from(body))
             .unwrap()
     }
 }
