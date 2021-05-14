@@ -79,7 +79,7 @@ pub async fn create_account(req: &Request) -> Result<CreateAccountOutput, Create
     dynamodb_client.put_item(PutItemInput{
         item: account_doc.as_hashmap(),
         table_name: accounts_datastore_name,
-        condition_expression: Some("attribute_not_exists(Email) and attribute_not_exists(AccountId)".to_string()),
+        condition_expression: Some("attribute_not_exists(Email)".to_string()),
         ..PutItemInput::default()
     })
                    .await
