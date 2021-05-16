@@ -1,32 +1,26 @@
 use bytes::Bytes;
-use commons::CreateAccountInput;
 use rusoto_dynamodb::AttributeValue;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
 use std::collections::HashMap;
+use utils::dynamodb_interop::Document;
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[serde(deny_unknown_fields)]
 pub struct UserAccount {
     pub account_id: Uuid,
     pub email: String,
     pub first_name: String,
     pub last_name: String,
     pub gov_id: String,
+    #[serde(skip_serializing)]
     pub password: String,
 }
 
-impl UserAccount {
-    pub fn from_input(input: &CreateAccountInput) -> Self {
-        UserAccount {
-            account_id: Uuid::new_v4(),
-            email: input.email.clone(),
-            first_name: input.first_name.clone(),
-            last_name: input.last_name.clone(),
-            gov_id: input.gov_id.clone(),
-            password: input.password.clone(),
-        }
-    }
-
-    pub fn as_hashmap(&self) -> HashMap<String, AttributeValue> {
+impl Document for UserAccount {
+    fn document(&self) -> HashMap<String, AttributeValue> {
         let mut m = HashMap::new();
         m.insert(
             "AccountId".to_string(),

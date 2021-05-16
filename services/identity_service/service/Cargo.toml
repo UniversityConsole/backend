@@ -16,6 +16,8 @@ rusoto_dynamodb = "0.46.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 bytes = "1.0.1"
 sha2 = "0.9.5"
+base64 = "0.13.0"
+utils = { path = "../../../utils" }
 
 [package.metadata]
 artifact_type = "lambda_bootstrap"

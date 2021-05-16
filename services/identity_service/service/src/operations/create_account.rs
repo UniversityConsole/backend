@@ -1,15 +1,16 @@
-use crate::data_plane::UserAccount;
-use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
+use crate::Context;
+use commons::{
+    dataplane::UserAccount, CreateAccountError, CreateAccountInput, CreateAccountOutput,
+};
 use lambda_http::Request;
 use rusoto_core::RusotoError;
-use rusoto_dynamodb::{DynamoDb, DynamoDbClient, PutItemError, PutItemInput};
-use std::{convert::TryInto, env};
-
-const DATASTORE_NAME_VAR: &str = "USER_ACCOUNTS_TABLE_NAME";
+use rusoto_dynamodb::{PutItemError, PutItemInput};
+use std::convert::TryInto;
+use utils::dynamodb_interop::Document;
+use uuid::Uuid;
 
 struct CreateAccountProcessor<'a> {
-    dynamodb_client: &'a (dyn DynamoDb + Sync + Send + 'a),
-    datastore_name: String,
+    ctx: &'a Context,
 }
 
 impl CreateAccountProcessor<'_> {
@@ -17,12 +18,20 @@ impl CreateAccountProcessor<'_> {
         &self,
         input: &CreateAccountInput,
     ) -> Result<CreateAccountOutput, CreateAccountError> {
-        let account_doc = UserAccount::from_input(input);
+        let account_doc = UserAccount {
+            account_id: Uuid::new_v4(),
+            email: input.email.clone(),
+            first_name: input.first_name.clone(),
+            last_name: input.last_name.clone(),
+            gov_id: input.gov_id.clone(),
+            password: input.password.clone(),
+        };
 
-        self.dynamodb_client
+        self.ctx
+            .dynamodb_client
             .put_item(PutItemInput {
-                item: account_doc.as_hashmap(),
-                table_name: self.datastore_name.clone(),
+                item: account_doc.document(),
+                table_name: self.ctx.datastore_name.clone(),
                 condition_expression: Some("attribute_not_exists(Email)".to_string()),
                 ..PutItemInput::default()
             })
@@ -43,16 +52,12 @@ impl CreateAccountProcessor<'_> {
     }
 }
 
-pub async fn create_account(req: &Request) -> Result<CreateAccountOutput, CreateAccountError> {
+pub async fn create_account(
+    req: &Request,
+    ctx: &Context,
+) -> Result<CreateAccountOutput, CreateAccountError> {
     let input: CreateAccountInput = req.try_into().map_err(|_| CreateAccountError::BadRequest)?;
-    let datastore_name =
-        env::var(DATASTORE_NAME_VAR).map_err(|_| CreateAccountError::InternalError)?;
-    let dynamodb_client = DynamoDbClient::new(rusoto_core::Region::EuWest1);
-
-    let processor = CreateAccountProcessor {
-        dynamodb_client: &dynamodb_client,
-        datastore_name,
-    };
+    let processor = CreateAccountProcessor { ctx };
 
     processor.create_account(&input).await
 }

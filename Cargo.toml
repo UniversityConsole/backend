@@ -1,5 +1,6 @@
 [workspace]
 members = [
+        "utils",
         "client_generator",
         "service_client_runtime",
         "services/identity_service/commons",
