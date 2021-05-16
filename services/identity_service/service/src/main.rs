@@ -1,21 +1,25 @@
 mod operations;
 
-extern crate simple_logger;
 extern crate log;
+extern crate simple_logger;
 
 use std::{collections::HashMap, env};
 
-use lambda_http::{Body, IntoResponse, Request, Response, handler, http::Method};
 use lambda_http::lambda_runtime::{self, Context};
-use simple_logger::SimpleLogger;
+use lambda_http::{handler, http::Method, Body, IntoResponse, Request, Response};
 use log::LevelFilter;
+use simple_logger::SimpleLogger;
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let debug_enabled = env::var("LAMBDA_DEBUG").is_ok();
-    let log_level = if debug_enabled { LevelFilter::Debug } else { LevelFilter::Info };
+    let log_level = if debug_enabled {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
 
     SimpleLogger::new()
         .with_level(LevelFilter::Info)
@@ -63,4 +67,3 @@ async fn process_request(request: Request, _: Context) -> Result<impl IntoRespon
         Err(err) => Ok(err.into_response()),
     }
 }
-
