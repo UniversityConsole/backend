@@ -18,9 +18,9 @@ pub struct ListAccountsInput {
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct ListAccountsOutput {
-    accounts: Vec<UserAccount>,
+    pub accounts: Vec<UserAccount>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    next_token: Option<String>,
+    pub next_token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -43,6 +43,17 @@ impl<'a> TryFrom<&'a Request> for ListAccountsInput {
             Body::Text(data) => serde_json::from_str(&data)
                 .map_err(|_| SimpleError::new("Failed to parse ListAccountsInput")),
         }
+    }
+}
+
+impl IntoResponse for ListAccountsOutput {
+    fn into_response(self) -> Response<Body> {
+        let body = serde_json::to_string(&self).unwrap();
+        Response::builder()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(Body::Text(body))
+            .unwrap()
     }
 }
 

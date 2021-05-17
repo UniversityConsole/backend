@@ -52,7 +52,7 @@ impl CreateAccountProcessor<'_> {
     }
 }
 
-pub async fn create_account(
+pub async fn handler(
     req: &Request,
     ctx: &Context,
 ) -> Result<CreateAccountOutput, CreateAccountError> {

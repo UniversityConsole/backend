@@ -2,7 +2,9 @@ use bytes::Bytes;
 use rusoto_dynamodb::AttributeValue;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha512};
+use simple_error::SimpleError;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use utils::dynamodb_interop::Document;
 use uuid::Uuid;
 
@@ -69,5 +71,54 @@ impl Document for UserAccount {
         );
 
         m
+    }
+}
+
+impl TryFrom<&HashMap<String, AttributeValue>> for UserAccount {
+    type Error = SimpleError;
+
+    fn try_from(doc: &HashMap<String, AttributeValue>) -> Result<Self, Self::Error> {
+        let account_id = doc
+            .get(&String::from("AccountId"))
+            .ok_or(SimpleError::new("Field AccountId not found."))?
+            .b
+            .as_ref()
+            .ok_or(SimpleError::new("Expected AccountId in binary format."))?;
+        let account_id = Uuid::from_slice(&account_id[..])
+            .map_err(|_| SimpleError::new("Invalid length for AccountId."))?;
+
+        // TODO Make this process generic and avoid panics.
+        Ok(UserAccount {
+            account_id,
+            email: doc
+                .get(&String::from("Email"))
+                .unwrap()
+                .s
+                .as_ref()
+                .unwrap()
+                .clone(),
+            first_name: doc
+                .get(&String::from("FirstName"))
+                .unwrap()
+                .s
+                .as_ref()
+                .unwrap()
+                .clone(),
+            last_name: doc
+                .get(&String::from("LastName"))
+                .unwrap()
+                .s
+                .as_ref()
+                .unwrap()
+                .clone(),
+            gov_id: doc
+                .get(&String::from("GovId"))
+                .unwrap()
+                .s
+                .as_ref()
+                .unwrap()
+                .clone(),
+            password: "".to_string(),
+        })
     }
 }

@@ -86,20 +86,6 @@ async fn process_request(
         return Ok(error_response("Operation must be an ASCII string.", 400));
     }
     let operation = operation.unwrap();
-
-    type Handler = dyn Fn(&Request, &Context) -> dyn std::future::Future<Output = dyn IntoResponse>;
-
-    let executor: Option<Box<Test>> = match operation {
-        "CreateAccount" => Some(Box::new(&crate::operations::create_account)),
-        "ListAccounts" => Some(Box::new(&crate::operations::list_accounts)),
-        _ => None,
-    };
-
-    if executor.is_none() {
-        return Ok(error_response("Unknown operation.", 400));
-    }
-
-    let executor = executor.unwrap();
     let context = Context {
         dynamodb_client: Box::new(DynamoDbClient::new(Region::EuWest1)),
         datastore_name: Context::env_datastore_name(),
@@ -107,9 +93,19 @@ async fn process_request(
 
     log::debug!("Using DynamoDB table \"{}\".", &context.datastore_name);
 
-    let result = executor(&request, &context).await;
-    match result {
-        Ok(output) => Ok(output.into_response()),
-        Err(err) => Ok(err.into_response()),
-    }
+    Ok(match operation {
+        "CreateAccount" => {
+            match crate::operations::create_account::handler(&request, &context).await {
+                Ok(r) => r.into_response(),
+                Err(r) => r.into_response(),
+            }
+        }
+        "ListAccounts" => {
+            match crate::operations::list_accounts::handler(&request, &context).await {
+                Ok(r) => r.into_response(),
+                Err(r) => r.into_response(),
+            }
+        }
+        _ => error_response("Unknown operation.", 400),
+    })
 }

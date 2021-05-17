@@ -1,9 +1,11 @@
 use crate::Context;
 use base64;
+use commons::dataplane::UserAccount;
 use commons::{ListAccountsError, ListAccountsInput, ListAccountsOutput};
 use lambda_http::Request;
-use rusoto_dynamodb::{ScanInput, AttributeValue};
+use rusoto_dynamodb::{AttributeValue, ScanInput};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::convert::TryInto;
 
 struct ListAccountsProcessor<'a> {
@@ -26,10 +28,13 @@ impl ListAccountsProcessor<'_> {
                 let v = String::from_utf8(v)
                     .map_err(|_| ListAccountsError::ValidationError(PARSE_ERR_MSG.to_string()))?;
                 let mut hm = HashMap::new();
-                hm.insert("Email".to_string(), AttributeValue {
-                    s: Some(v),
-                    ..AttributeValue::default()
-                });
+                hm.insert(
+                    "Email".to_string(),
+                    AttributeValue {
+                        s: Some(v),
+                        ..AttributeValue::default()
+                    },
+                );
                 Some(hm)
             }
             None => None,
@@ -47,11 +52,38 @@ impl ListAccountsProcessor<'_> {
             .await
             .map_err(|_| ListAccountsError::InternalError)?;
 
-        Err(ListAccountsError::InternalError)
+        let next_token = match scan_output.last_evaluated_key {
+            None => None,
+            Some(hm) => {
+                let email_value = hm.get(&"Email".to_string()).unwrap();
+                Some(base64::encode(email_value.s.as_ref().unwrap()))
+            }
+        };
+
+        let accounts = match scan_output.items {
+            None => vec![],
+            Some(items) => {
+                // TODO Allocate scan_output.items_count elements here.
+                let mut accounts = vec![];
+                for item in items.iter() {
+                    let account = UserAccount::try_from(item).map_err(|err| {
+                        log::error!("Invalid record in DynamoDB: {}", err);
+                        ListAccountsError::InternalError
+                    })?;
+                    accounts.push(account);
+                }
+                accounts
+            }
+        };
+
+        Ok(ListAccountsOutput {
+            next_token,
+            accounts,
+        })
     }
 }
 
-pub async fn list_accounts(
+pub async fn handler(
     req: &Request,
     ctx: &Context,
 ) -> Result<ListAccountsOutput, ListAccountsError> {
