@@ -1,13 +1,10 @@
 use crate::Context;
-use commons::{
-    dataplane::UserAccount, CreateAccountError, CreateAccountInput, CreateAccountOutput,
-};
+use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
 use lambda_http::Request;
 use rusoto_core::RusotoError;
 use rusoto_dynamodb::{PutItemError, PutItemInput};
+use serde_dynamodb::to_hashmap;
 use std::convert::TryInto;
-use utils::dynamodb_interop::Document;
-use uuid::Uuid;
 
 struct CreateAccountProcessor<'a> {
     ctx: &'a Context,
@@ -18,19 +15,12 @@ impl CreateAccountProcessor<'_> {
         &self,
         input: &CreateAccountInput,
     ) -> Result<CreateAccountOutput, CreateAccountError> {
-        let account_doc = UserAccount {
-            account_id: Uuid::new_v4(),
-            email: input.email.clone(),
-            first_name: input.first_name.clone(),
-            last_name: input.last_name.clone(),
-            gov_id: input.gov_id.clone(),
-            password: input.password.clone(),
-        };
+        let account = &input.account;
 
         self.ctx
             .dynamodb_client
             .put_item(PutItemInput {
-                item: account_doc.document(),
+                item: to_hashmap(&account).unwrap(),
                 table_name: self.ctx.datastore_name.clone(),
                 condition_expression: Some("attribute_not_exists(Email)".to_string()),
                 ..PutItemInput::default()
@@ -47,7 +37,7 @@ impl CreateAccountProcessor<'_> {
             })?;
 
         Ok(CreateAccountOutput {
-            account_id: account_doc.account_id.to_hyphenated().to_string(),
+            account_id: account.account_id.to_hyphenated().to_string(),
         })
     }
 }

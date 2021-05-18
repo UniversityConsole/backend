@@ -1,11 +1,10 @@
 use crate::Context;
 use base64;
-use commons::dataplane::UserAccount;
 use commons::{ListAccountsError, ListAccountsInput, ListAccountsOutput};
 use lambda_http::Request;
 use rusoto_dynamodb::{AttributeValue, ScanInput};
+use serde_dynamodb::from_hashmap;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::convert::TryInto;
 
 struct ListAccountsProcessor<'a> {
@@ -65,9 +64,14 @@ impl ListAccountsProcessor<'_> {
             Some(items) => {
                 // TODO Allocate scan_output.items_count elements here.
                 let mut accounts = vec![];
-                for item in items.iter() {
-                    let account = UserAccount::try_from(item).map_err(|err| {
-                        log::error!("Invalid record in DynamoDB: {}", err);
+                for item in items.into_iter() {
+                    let item_json = serde_json::json!(&item);
+                    let account = from_hashmap(item).map_err(|err| {
+                        log::error!(
+                            "Invalid record in DynamoDB: {}. Original item: {}",
+                            err,
+                            item_json
+                        );
                         ListAccountsError::InternalError
                     })?;
                     accounts.push(account);

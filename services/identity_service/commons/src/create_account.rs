@@ -8,11 +8,7 @@ use std::convert::TryFrom;
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct CreateAccountInput {
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub gov_id: String,
-    pub password: String,
+    pub account: crate::dataplane::UserAccount,
 }
 
 #[derive(Serialize, Deserialize)]
