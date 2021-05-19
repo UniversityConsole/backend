@@ -24,7 +24,7 @@ pub struct CreateAccountOutput {
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub enum CreateAccountError {
-    BadRequest,
+    Validation(String),
     DuplicateAccount,
     InternalError,
 }
@@ -57,7 +57,7 @@ impl IntoResponse for CreateAccountError {
     fn into_response(self) -> Response<Body> {
         let body = json!({ "Message": self }).to_string();
         let status_code = match self {
-            CreateAccountError::BadRequest => 400,
+            CreateAccountError::Validation(_) => 400,
             CreateAccountError::DuplicateAccount => 400,
             CreateAccountError::InternalError => 500,
         };

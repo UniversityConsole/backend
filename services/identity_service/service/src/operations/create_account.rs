@@ -18,6 +18,12 @@ impl CreateAccountProcessor<'_> {
         let mut account = input.account.clone();
         account.account_id = Uuid::new_v4();
 
+        if account.password.is_empty() {
+            return Err(CreateAccountError::Validation(String::from(
+                "Password is required.",
+            )));
+        }
+
         self.ctx
             .dynamodb_client
             .put_item(PutItemInput {
@@ -47,7 +53,9 @@ pub async fn handler(
     req: &Request,
     ctx: &Context,
 ) -> Result<CreateAccountOutput, CreateAccountError> {
-    let input: CreateAccountInput = req.try_into().map_err(|_| CreateAccountError::BadRequest)?;
+    let input: CreateAccountInput = req
+        .try_into()
+        .map_err(|_| CreateAccountError::Validation("Invalid request".to_string()))?;
     let processor = CreateAccountProcessor { ctx };
 
     processor.create_account(&input).await
