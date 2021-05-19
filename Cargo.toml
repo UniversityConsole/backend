@@ -6,4 +6,6 @@ members = [
         "services/identity_service/commons",
         "services/identity_service/client",
         "services/identity_service/service",
+        "services/course_service/commons",
+        "services/course_service/service",
 ]

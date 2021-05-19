@@ -1,10 +1,10 @@
+/*
 #[macro_use]
 use client_generator::service;
-use commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
-use commons::{UpdateAccountError, UpdateAccountInput, UpdateAccountOutput};
-use commons::{UpdateCredentialsError, UpdateCredentialsInput};
+use identity_service_commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
+use identity_service_commons::{UpdateAccountError, UpdateAccountInput, UpdateAccountOutput};
+use identity_service_commons::{UpdateCredentialsError, UpdateCredentialsInput};
 
-/*
 service!(Service {
     name: "IdentityService",
     http_scope: "/identity_service",

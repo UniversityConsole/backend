@@ -1,25 +1,23 @@
+use crate::dataplane::UserAccount;
 use lambda_http::{Body, IntoResponse, Request, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use simple_error::SimpleError;
 use std::convert::TryFrom;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct CreateAccountInput {
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub gov_id: String,
-    pub password: String,
+    pub account: UserAccount,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct CreateAccountOutput {
-    pub account_id: String,
+    pub account_id: Uuid,
 }
 
 #[derive(Serialize, Deserialize)]
