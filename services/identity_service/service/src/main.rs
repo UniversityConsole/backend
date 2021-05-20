@@ -106,6 +106,12 @@ async fn process_request(
                 Err(r) => r.into_response(),
             }
         }
+        "DescribeAccount" => {
+            match crate::operations::describe_account::handler(&request, &context).await {
+                Ok(r) => r.into_response(),
+                Err(r) => r.into_response(),
+            }
+        }
         _ => error_response("Unknown operation.", 400),
     })
 }
