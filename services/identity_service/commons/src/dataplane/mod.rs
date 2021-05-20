@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+use sha2::{Digest, Sha512};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -12,8 +13,19 @@ pub struct UserAccount {
     pub last_name: String,
     pub gov_id: String,
     #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(serialize_with = "serialize_password")]
     #[serde(default = "String::new")]
     pub password: String,
+}
+
+fn serialize_password<S>(val: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut hasher = Sha512::new();
+    hasher.update(&val);
+    let hashed = hasher.finalize();
+    serializer.serialize_bytes(&hashed.as_slice())
 }
 
 #[cfg(test)]
@@ -49,7 +61,6 @@ mod tests {
     fn deserializes_from_datastore_doc() {
         use super::*;
         use rusoto_dynamodb::AttributeValue;
-        use serde_json::json;
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -101,5 +112,24 @@ mod tests {
         let actual = serde_dynamodb::from_hashmap::<UserAccount, _>(doc).unwrap();
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn password_serializes_to_bytes() {
+        use super::*;
+        use uuid::Uuid;
+
+        let account = UserAccount {
+            account_id: Uuid::nil(),
+            email: "john.doe@example.com".to_string(),
+            first_name: "John".to_string(),
+            last_name: "Doe".to_string(),
+            gov_id: "JD".to_string(),
+            password: "super_secret".to_string(),
+        };
+        let serialized = serde_dynamodb::to_hashmap(&account).unwrap();
+        let serialized_password_attr = serialized.get(&"Password".to_string()).unwrap();
+        assert_eq!(true, serialized_password_attr.b.is_some());
+        assert_eq!(true, serialized_password_attr.s.is_none());
     }
 }
