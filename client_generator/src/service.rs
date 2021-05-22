@@ -122,10 +122,29 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
     };
 
     let service_client = quote! {
+        use service_client_runtime::{OperationError, ServiceClient};
+
         #documentation
-        struct #service_client_name {}
+        pub struct #service_client_name {
+            client: ServiceClient,
+        }
 
         impl #service_client_name {
+            pub fn from_env() -> Result<Self, std::env::VarError> {
+                Ok(#service_client_name {
+                    client: ServiceClient::from_env(#service_client_name::service_name())?,
+                })
+            }
+
+            pub fn new(endpoint: &str) -> Self {
+                #service_client_name {
+                    client: ServiceClient {
+                        endpoint: String::from(endpoint),
+                        service_name: String::from(#service_client_name::service_name()),
+                    },
+                }
+            }
+
             pub fn service_name() -> &'static str {
                 #service_name
             }
@@ -144,9 +163,10 @@ pub fn create_service_client(definition: &ServiceDefinition) -> TokenStream {
 fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_fn_name = format_ident!("{}", op.name.to_case(Case::Snake));
     let op_result = get_op_result(&op);
+    let op_name = &op.name;
     let op_input = &op.input.as_ref().map_or(
         proc_macro2::TokenStream::new(),
-        |input_ty| quote!(input: &#input_ty),
+        |input_ty| quote!(input: #input_ty),
     );
     let op_doc = if let Some(doc_str) = &op.documentation {
         quote! {
@@ -161,8 +181,8 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
 
     quote! {
         #op_doc
-        pub async fn #op_fn_name(#op_input) -> #op_result {
-
+        pub async fn #op_fn_name(&self, #op_input) -> #op_result {
+            self.client.call_service(#op_name, input).await
         }
     }
 }
@@ -171,6 +191,6 @@ fn get_op_result(op: &Operation) -> proc_macro2::TokenStream {
     let output = &op.output.as_ref().map_or(quote!(()), |ty| quote!(#ty));
     let error = &op.error;
     quote! {
-        std::result::Result<#output, #error>
+        std::result::Result<#output, OperationError<#error>>
     }
 }

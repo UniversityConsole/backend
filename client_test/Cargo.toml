@@ -1,0 +1,11 @@
+[package]
+name = "client_test"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+identity_service_client = { path = "../services/identity_service/client" }
+identity_service_commons = { path = "../services/identity_service/commons" }
+tokio = { version = "1.5.0", features = ["full"] }

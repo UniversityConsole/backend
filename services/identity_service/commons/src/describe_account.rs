@@ -20,7 +20,8 @@ pub struct DescribeAccountOutput {
     pub account: UserAccount,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "ErrorKind", content = "Message")]
 pub enum DescribeAccountError {
     InternalError,
     ValidationError(String),

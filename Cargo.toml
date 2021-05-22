@@ -8,4 +8,5 @@ members = [
         "services/identity_service/service",
         "services/course_service/commons",
         "services/course_service/service",
+        "client_test",
 ]

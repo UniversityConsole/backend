@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use simple_error::SimpleError;
 use std::convert::TryFrom;
+use std::default::Default;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct ListAccountsInput {
@@ -14,7 +15,7 @@ pub struct ListAccountsInput {
     pub page_size: i64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct ListAccountsOutput {
@@ -23,7 +24,8 @@ pub struct ListAccountsOutput {
     pub next_token: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "ErrorKind", content = "Message")]
 pub enum ListAccountsError {
     InternalError,
     ValidationError(String),
@@ -31,6 +33,15 @@ pub enum ListAccountsError {
 
 fn default_page_size() -> i64 {
     32
+}
+
+impl Default for ListAccountsInput {
+    fn default() -> Self {
+        ListAccountsInput {
+            starting_token: None,
+            page_size: default_page_size(),
+        }
+    }
 }
 
 impl<'a> TryFrom<&'a Request> for ListAccountsInput {

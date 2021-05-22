@@ -20,12 +20,13 @@ pub struct CreateAccountOutput {
     pub account_id: Uuid,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
+#[serde(tag = "ErrorKind", content = "Message")]
 pub enum CreateAccountError {
-    Validation(String),
-    DuplicateAccount,
+    ValidationError(String),
+    DuplicateAccountError,
     InternalError,
 }
 
@@ -57,8 +58,8 @@ impl IntoResponse for CreateAccountError {
     fn into_response(self) -> Response<Body> {
         let body = json!({ "Message": self }).to_string();
         let status_code = match self {
-            CreateAccountError::Validation(_) => 400,
-            CreateAccountError::DuplicateAccount => 400,
+            CreateAccountError::ValidationError(_) => 400,
+            CreateAccountError::DuplicateAccountError => 400,
             CreateAccountError::InternalError => 500,
         };
         Response::builder()

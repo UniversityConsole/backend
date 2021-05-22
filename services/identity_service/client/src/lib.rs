@@ -1,9 +1,7 @@
-/*
-#[macro_use]
 use client_generator::service;
 use identity_service_commons::{CreateAccountError, CreateAccountInput, CreateAccountOutput};
-use identity_service_commons::{UpdateAccountError, UpdateAccountInput, UpdateAccountOutput};
-use identity_service_commons::{UpdateCredentialsError, UpdateCredentialsInput};
+use identity_service_commons::{DescribeAccountError, DescribeAccountInput, DescribeAccountOutput};
+use identity_service_commons::{ListAccountsError, ListAccountsInput, ListAccountsOutput};
 
 service!(Service {
     name: "IdentityService",
@@ -18,18 +16,18 @@ service!(Service {
             documentation: "Create a new user account.",
         },
         Operation {
-            name: "UpdateAccount",
-            input: UpdateAccountInput,
-            output: UpdateAccountOutput,
-            error: UpdateAccountError,
-            documentation: "Update an existing user account",
+            name: "ListAccounts",
+            input: ListAccountsInput,
+            output: ListAccountsOutput,
+            error: ListAccountsError,
+            documentation: "List all existing user accounts.",
         },
         Operation {
-            name: "UpdateCredentials",
-            input: UpdateCredentialsInput,
-            error: UpdateCredentialsError,
-            documentation: "Update the credentials for an existing user account",
+            name: "DescribeAccount",
+            input: DescribeAccountInput,
+            output: DescribeAccountOutput,
+            error: DescribeAccountError,
+            documentation: "Describe an existing account, given its unique identifier.",
         },
     ],
 });
- */

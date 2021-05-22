@@ -16,6 +16,12 @@ impl ListAccountsProcessor<'_> {
         &self,
         input: &ListAccountsInput,
     ) -> Result<ListAccountsOutput, ListAccountsError> {
+        if input.page_size <= 0 {
+            return Err(ListAccountsError::ValidationError(
+                "PageSize must be >= 0.".to_string(),
+            ));
+        }
+
         // TODO Find a way not to hard-code this.
         let projection_expression =
             ["AccountId", "Email", "FirstName", "LastName", "GovId"].join(",");

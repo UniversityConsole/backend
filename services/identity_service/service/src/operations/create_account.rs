@@ -19,7 +19,7 @@ impl CreateAccountProcessor<'_> {
         account.account_id = Uuid::new_v4();
 
         if account.password.is_empty() {
-            return Err(CreateAccountError::Validation(String::from(
+            return Err(CreateAccountError::ValidationError(String::from(
                 "Password is required.",
             )));
         }
@@ -35,7 +35,7 @@ impl CreateAccountProcessor<'_> {
             .await
             .map_err(|err| match err {
                 RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) => {
-                    CreateAccountError::DuplicateAccount
+                    CreateAccountError::DuplicateAccountError
                 }
                 _ => {
                     log::error!("Failed creating item in DynamoDB: {:?}", err);
@@ -55,7 +55,7 @@ pub async fn handler(
 ) -> Result<CreateAccountOutput, CreateAccountError> {
     let input: CreateAccountInput = req
         .try_into()
-        .map_err(|_| CreateAccountError::Validation("Invalid request".to_string()))?;
+        .map_err(|_| CreateAccountError::ValidationError("Invalid request".to_string()))?;
     let processor = CreateAccountProcessor { ctx };
 
     processor.create_account(&input).await
