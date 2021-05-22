@@ -3,6 +3,7 @@ members = [
         "utils",
         "client_generator",
         "service_client_runtime",
+        "services/core",
         "services/identity_service/commons",
         "services/identity_service/client",
         "services/identity_service/service",

@@ -3,6 +3,7 @@ use identity_service_commons::{CreateAccountError, CreateAccountInput, CreateAcc
 use lambda_http::Request;
 use rusoto_core::RusotoError;
 use rusoto_dynamodb::{PutItemError, PutItemInput};
+use service_core::EndpointError;
 use std::convert::TryInto;
 use uuid::Uuid;
 
@@ -14,12 +15,12 @@ impl CreateAccountProcessor<'_> {
     pub async fn create_account(
         &self,
         input: &CreateAccountInput,
-    ) -> Result<CreateAccountOutput, CreateAccountError> {
+    ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
         let mut account = input.account.clone();
         account.account_id = Uuid::new_v4();
 
         if account.password.is_empty() {
-            return Err(CreateAccountError::ValidationError(String::from(
+            return Err(EndpointError::BadRequestError(String::from(
                 "Password is required.",
             )));
         }
@@ -35,11 +36,11 @@ impl CreateAccountProcessor<'_> {
             .await
             .map_err(|err| match err {
                 RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) => {
-                    CreateAccountError::DuplicateAccountError
+                    EndpointError::Operation(CreateAccountError::DuplicateAccountError)
                 }
                 _ => {
                     log::error!("Failed creating item in DynamoDB: {:?}", err);
-                    CreateAccountError::InternalError
+                    EndpointError::InternalError
                 }
             })?;
 
@@ -52,10 +53,10 @@ impl CreateAccountProcessor<'_> {
 pub async fn handler(
     req: &Request,
     ctx: &Context,
-) -> Result<CreateAccountOutput, CreateAccountError> {
+) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
     let input: CreateAccountInput = req
         .try_into()
-        .map_err(|_| CreateAccountError::ValidationError("Invalid request".to_string()))?;
+        .map_err(|_| EndpointError::BadRequestError("Invalid request".to_string()))?;
     let processor = CreateAccountProcessor { ctx };
 
     processor.create_account(&input).await

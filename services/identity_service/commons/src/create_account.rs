@@ -1,9 +1,10 @@
 use crate::dataplane::UserAccount;
 use lambda_http::{Body, IntoResponse, Request, Response};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use service_core::{HttpError, HttpStatus};
 use simple_error::SimpleError;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, error::Error, fmt::Display};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
@@ -25,9 +26,7 @@ pub struct CreateAccountOutput {
 #[serde(deny_unknown_fields)]
 #[serde(tag = "ErrorKind", content = "Message")]
 pub enum CreateAccountError {
-    ValidationError(String),
     DuplicateAccountError,
-    InternalError,
 }
 
 impl<'a> TryFrom<&'a Request> for CreateAccountInput {
@@ -56,16 +55,34 @@ impl IntoResponse for CreateAccountOutput {
 
 impl IntoResponse for CreateAccountError {
     fn into_response(self) -> Response<Body> {
-        let body = json!({ "Message": self }).to_string();
-        let status_code = match self {
-            CreateAccountError::ValidationError(_) => 400,
-            CreateAccountError::DuplicateAccountError => 400,
-            CreateAccountError::InternalError => 500,
-        };
+        let body = serde_json::to_string(&self).unwrap();
         Response::builder()
-            .status(status_code)
+            .status(self.status_code())
             .header("Content-Type", "application/json")
             .body(Body::from(body))
             .unwrap()
     }
 }
+
+impl HttpStatus for CreateAccountError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            CreateAccountError::DuplicateAccountError => StatusCode::BAD_REQUEST,
+        }
+    }
+}
+
+impl Display for CreateAccountError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            CreateAccountError::DuplicateAccountError => {
+                "An account with this email already exists."
+            }
+        };
+
+        write!(f, "{}", msg)
+    }
+}
+
+impl Error for CreateAccountError {}
+impl HttpError for CreateAccountError {}

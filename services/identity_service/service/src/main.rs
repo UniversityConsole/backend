@@ -3,13 +3,14 @@ mod operations;
 extern crate log;
 extern crate simple_logger;
 
-use std::{collections::HashMap, env};
+use std::env;
 
 use lambda_http::lambda_runtime::{self, Context as LambdaRuntimeContext};
-use lambda_http::{handler, http::Method, Body, IntoResponse, Request, Response};
+use lambda_http::{handler, http::Method, IntoResponse, Request};
 use log::LevelFilter;
 use rusoto_core::Region;
 use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
+use service_core::{EndpointError, GenericServiceError};
 use simple_logger::SimpleLogger;
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -51,39 +52,31 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-fn error_response<'a>(message: &'a str, status_code: u16) -> Response<Body> {
-    let message_body = {
-        let mut b = HashMap::new();
-        b.insert("Message", message);
-        b
-    };
-
-    Response::builder()
-        .status(status_code)
-        .header("Content-Type", "application/json")
-        .body(Body::from(serde_json::to_string(&message_body).unwrap()))
-        .unwrap()
-}
-
 async fn process_request(
     request: Request,
     _: LambdaRuntimeContext,
 ) -> Result<impl IntoResponse, Error> {
     let method = request.method();
     if method != Method::POST {
-        return Ok(error_response("Expected POST request.", 400));
+        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
+            "Expected POST request.".to_string(),
+        )
+        .into_response());
     }
 
     let operation = &request.headers().get("X-Uc-Operation");
     if let None = operation {
-        return Ok(error_response(
-            "Expected operation in \"X-Uc-Operation\" header.",
-            400,
-        ));
+        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
+            "Expected operation in \"X-Uc-Operation\" header.".to_string(),
+        )
+        .into_response());
     }
     let operation = operation.unwrap().to_str();
     if let Err(_) = operation {
-        return Ok(error_response("Operation must be an ASCII string.", 400));
+        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
+            "Operation must be an ANSI string.".to_string(),
+        )
+        .into_response());
     }
     let operation = operation.unwrap();
     let context = Context {
@@ -112,6 +105,7 @@ async fn process_request(
                 Err(r) => r.into_response(),
             }
         }
-        _ => error_response("Unknown operation.", 400),
+        _ => EndpointError::<GenericServiceError>::BadRequestError("Unknown operation".to_string())
+            .into_response(),
     })
 }

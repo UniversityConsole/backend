@@ -1,10 +1,10 @@
-use std::convert::TryFrom;
-
 use crate::dataplane::UserAccount;
 use lambda_http::{Body, IntoResponse, Request, Response};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use service_core::{HttpError, HttpStatus};
 use simple_error::SimpleError;
+use std::{convert::TryFrom, fmt::Display};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -23,8 +23,6 @@ pub struct DescribeAccountOutput {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "ErrorKind", content = "Message")]
 pub enum DescribeAccountError {
-    InternalError,
-    ValidationError(String),
     NotFoundError,
 }
 
@@ -54,16 +52,31 @@ impl IntoResponse for DescribeAccountOutput {
 
 impl IntoResponse for DescribeAccountError {
     fn into_response(self) -> Response<Body> {
-        let body = json!({ "Message": self }).to_string();
-        let status_code = match self {
-            DescribeAccountError::ValidationError(_) => 400,
-            DescribeAccountError::InternalError => 500,
-            DescribeAccountError::NotFoundError => 404,
-        };
         Response::builder()
-            .status(status_code)
+            .status(self.status_code())
             .header("Content-Type", "application/json")
-            .body(Body::from(body))
+            .body(Body::from(serde_json::to_string(&self).unwrap()))
             .unwrap()
     }
 }
+
+impl HttpStatus for DescribeAccountError {
+    fn status_code(&self) -> lambda_http::http::StatusCode {
+        match self {
+            DescribeAccountError::NotFoundError => StatusCode::NOT_FOUND,
+        }
+    }
+}
+
+impl Display for DescribeAccountError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            DescribeAccountError::NotFoundError => "No such account.",
+        };
+
+        write!(f, "{}", msg)
+    }
+}
+
+impl std::error::Error for DescribeAccountError {}
+impl HttpError for DescribeAccountError {}

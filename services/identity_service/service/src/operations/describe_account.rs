@@ -4,6 +4,7 @@ use identity_service_commons::{DescribeAccountError, DescribeAccountInput, Descr
 use lambda_http::Request;
 use rusoto_dynamodb::{AttributeValue, GetItemInput, QueryInput};
 use serde::{Deserialize, Serialize};
+use service_core::EndpointError;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -23,7 +24,7 @@ impl DescribeAccountProcessor<'_> {
     pub async fn describe_account(
         &self,
         input: &DescribeAccountInput,
-    ) -> Result<DescribeAccountOutput, DescribeAccountError> {
+    ) -> Result<DescribeAccountOutput, EndpointError<DescribeAccountError>> {
         let mut query_params = HashMap::new();
         query_params.insert(
             ":uuid".to_string(),
@@ -47,11 +48,13 @@ impl DescribeAccountProcessor<'_> {
             .await
             .map_err(|e| {
                 log::error!("Failed to query DynamoDB. Original error: {:?}.", e);
-                DescribeAccountError::InternalError
+                EndpointError::InternalError
             })?;
 
         if output.count.unwrap() == 0 {
-            return Err(DescribeAccountError::NotFoundError);
+            return Err(EndpointError::Operation(
+                DescribeAccountError::NotFoundError,
+            ));
         }
 
         let items = output.items.unwrap();
@@ -82,7 +85,7 @@ impl DescribeAccountProcessor<'_> {
                     "Failed to retrieve item from DynamoDB. Original error: {:?}.",
                     e
                 );
-                DescribeAccountError::InternalError
+                EndpointError::InternalError
             })?;
 
         match output.item {
@@ -91,13 +94,15 @@ impl DescribeAccountProcessor<'_> {
                     "Item found on Query, but not found on GetItem. Queried AccountId: {}",
                     input.account_id.to_hyphenated().to_string()
                 );
-                Err(DescribeAccountError::NotFoundError)
+                Err(EndpointError::Operation(
+                    DescribeAccountError::NotFoundError,
+                ))
             }
             Some(item) => {
                 let user_account: UserAccount =
                     serde_dynamodb::from_hashmap(item).map_err(|e| {
                         log::error!("Invalid record in DynamoDB. Original error: {:?}.", e);
-                        DescribeAccountError::InternalError
+                        EndpointError::InternalError
                     })?;
                 Ok(DescribeAccountOutput {
                     account: user_account,
@@ -110,9 +115,9 @@ impl DescribeAccountProcessor<'_> {
 pub async fn handler(
     req: &Request,
     ctx: &Context,
-) -> Result<DescribeAccountOutput, DescribeAccountError> {
+) -> Result<DescribeAccountOutput, EndpointError<DescribeAccountError>> {
     let input: DescribeAccountInput = req.try_into().map_err(|_| {
-        DescribeAccountError::ValidationError("Could not parse request input.".to_string())
+        EndpointError::BadRequestError("Could not parse request input.".to_string())
     })?;
     let processor = DescribeAccountProcessor { ctx };
 

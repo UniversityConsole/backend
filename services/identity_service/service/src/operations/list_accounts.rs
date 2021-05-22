@@ -4,6 +4,7 @@ use identity_service_commons::{ListAccountsError, ListAccountsInput, ListAccount
 use lambda_http::Request;
 use rusoto_dynamodb::{AttributeValue, ScanInput};
 use serde_dynamodb::from_hashmap;
+use service_core::EndpointError;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
@@ -15,10 +16,10 @@ impl ListAccountsProcessor<'_> {
     pub async fn list_accounts(
         &self,
         input: &ListAccountsInput,
-    ) -> Result<ListAccountsOutput, ListAccountsError> {
+    ) -> Result<ListAccountsOutput, EndpointError<ListAccountsError>> {
         if input.page_size <= 0 {
-            return Err(ListAccountsError::ValidationError(
-                "PageSize must be >= 0.".to_string(),
+            return Err(EndpointError::BadRequestError(
+                "PageSize must be > 0.".to_string(),
             ));
         }
 
@@ -29,9 +30,9 @@ impl ListAccountsProcessor<'_> {
             Some(v) => {
                 const PARSE_ERR_MSG: &str = "Could not parse StartingToken.";
                 let v = base64::decode(&v)
-                    .map_err(|_| ListAccountsError::ValidationError(PARSE_ERR_MSG.to_string()))?;
+                    .map_err(|_| EndpointError::BadRequestError(PARSE_ERR_MSG.to_string()))?;
                 let v = String::from_utf8(v)
-                    .map_err(|_| ListAccountsError::ValidationError(PARSE_ERR_MSG.to_string()))?;
+                    .map_err(|_| EndpointError::BadRequestError(PARSE_ERR_MSG.to_string()))?;
                 let mut hm = HashMap::new();
                 hm.insert(
                     "Email".to_string(),
@@ -55,7 +56,7 @@ impl ListAccountsProcessor<'_> {
                 ..ScanInput::default()
             })
             .await
-            .map_err(|_| ListAccountsError::InternalError)?;
+            .map_err(|_| EndpointError::InternalError)?;
 
         let next_token = match scan_output.last_evaluated_key {
             None => None,
@@ -78,7 +79,7 @@ impl ListAccountsProcessor<'_> {
                             err,
                             item_json
                         );
-                        ListAccountsError::InternalError
+                        EndpointError::InternalError
                     })?;
                     accounts.push(account);
                 }
@@ -96,9 +97,9 @@ impl ListAccountsProcessor<'_> {
 pub async fn handler(
     req: &Request,
     ctx: &Context,
-) -> Result<ListAccountsOutput, ListAccountsError> {
+) -> Result<ListAccountsOutput, EndpointError<ListAccountsError>> {
     let input: ListAccountsInput = req.try_into().map_err(|_| {
-        ListAccountsError::ValidationError("Could not parse request input.".to_string())
+        EndpointError::BadRequestError("Could not parse request input.".to_string())
     })?;
     let processor = ListAccountsProcessor { ctx };
 

@@ -1,10 +1,12 @@
 use crate::dataplane::UserAccount;
+use core::panic;
 use lambda_http::{Body, IntoResponse, Request, Response};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use service_core::{HttpError, HttpStatus};
 use simple_error::SimpleError;
-use std::convert::TryFrom;
 use std::default::Default;
+use std::{convert::TryFrom, error::Error, fmt::Display};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -26,10 +28,7 @@ pub struct ListAccountsOutput {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "ErrorKind", content = "Message")]
-pub enum ListAccountsError {
-    InternalError,
-    ValidationError(String),
-}
+pub enum ListAccountsError {}
 
 fn default_page_size() -> i64 {
     32
@@ -70,15 +69,26 @@ impl IntoResponse for ListAccountsOutput {
 
 impl IntoResponse for ListAccountsError {
     fn into_response(self) -> Response<Body> {
-        let body = json!({ "Message": self }).to_string();
-        let status_code = match self {
-            ListAccountsError::ValidationError(_) => 400,
-            ListAccountsError::InternalError => 500,
-        };
+        let body = serde_json::to_string(&self).unwrap();
         Response::builder()
-            .status(status_code)
+            .status(self.status_code())
             .header("Content-Type", "application/json")
             .body(Body::from(body))
             .unwrap()
     }
 }
+
+impl HttpStatus for ListAccountsError {
+    fn status_code(&self) -> StatusCode {
+        panic!("Error should not be used.");
+    }
+}
+
+impl Display for ListAccountsError {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        panic!("Error should not be used.");
+    }
+}
+
+impl Error for ListAccountsError {}
+impl HttpError for ListAccountsError {}
