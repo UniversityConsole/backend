@@ -49,7 +49,7 @@ async fn inner_handler(
     } else {
         let mut hm = HashMap::new();
         hm.insert(
-            ":closed_at".to_string(),
+            ":course_id".to_string(),
             AttributeValue {
                 null: Some(true),
                 ..AttributeValue::default()
@@ -65,7 +65,7 @@ async fn inner_handler(
             projection_expression,
             table_name: ctx.courses_table.clone(),
             filter_expression,
-            attribute_values,
+            expression_attribute_values,
             ..ScanInput::default()
         })
         .await
