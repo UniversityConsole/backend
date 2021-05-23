@@ -49,7 +49,7 @@ async fn inner_handler(
     } else {
         let mut hm = HashMap::new();
         hm.insert(
-            ":course_id".to_string(),
+            ":closed_at".to_string(),
             AttributeValue {
                 null: Some(true),
                 ..AttributeValue::default()
