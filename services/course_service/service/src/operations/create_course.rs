@@ -87,7 +87,9 @@ async fn inner_handler(
             EndpointError::InternalError
         })?;
 
-    todo!();
+    Ok(CreateCourseOutput {
+        course_id: course.course_id,
+    })
 }
 
 pub(crate) async fn handler(
