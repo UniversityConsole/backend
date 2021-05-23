@@ -22,7 +22,7 @@ pub struct Course {
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct GradeComponent {
-    pub grading_rule_id: Uuid,
+    pub grade_component_id: Uuid,
     pub title: String,
     pub final_grade_percentage: f32,
 }

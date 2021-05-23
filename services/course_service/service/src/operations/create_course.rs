@@ -67,7 +67,7 @@ async fn inner_handler(
             .grading_rule
             .iter()
             .map(|c| GradeComponent {
-                grading_rule_id: Uuid::new_v4(),
+                grade_component_id: Uuid::new_v4(),
                 title: c.title.clone(),
                 final_grade_percentage: c.final_grade_percentage,
             })
