@@ -1,6 +1,8 @@
 use crate::Context;
 use course_service_commons::{
-    controlplane::create_course::{CreateCourseError, CreateCourseInput, CreateCourseOutput},
+    controlplane::create_course::{
+        CreateCourseError, CreateCourseInput, CreateCourseOutput, GradeComponentDetails,
+    },
     dataplane::{Course, GradeComponent},
 };
 use identity_service_client::IdentityServiceClient;
@@ -31,6 +33,8 @@ async fn inner_handler(
             "OwnerId is required.".to_string(),
         ));
     }
+
+    validate_grading_rule(&input.course.grading_rule)?;
 
     let identity_service = IdentityServiceClient::from_env().map_err(|e| {
         log::error!("Service endpoint not set. Original error: {:?}.", e);
@@ -90,6 +94,21 @@ async fn inner_handler(
     Ok(CreateCourseOutput {
         course_id: course.course_id,
     })
+}
+
+fn validate_grading_rule(
+    components: &Vec<GradeComponentDetails>,
+) -> Result<(), EndpointError<CreateCourseError>> {
+    let total_percentage = components
+        .iter()
+        .fold(0 as f32, |acc, i| acc + i.final_grade_percentage);
+    if (total_percentage - 1.0).abs() < f32::EPSILON {
+        return Err(EndpointError::BadRequestError(
+            "Grade components do not sum up to 100%.".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 pub(crate) async fn handler(
