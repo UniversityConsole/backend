@@ -65,7 +65,7 @@ async fn inner_handler(
             projection_expression,
             table_name: ctx.courses_table.clone(),
             filter_expression,
-attribute_values,
+            attribute_values,
             ..ScanInput::default()
         })
         .await

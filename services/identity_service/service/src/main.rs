@@ -5,8 +5,8 @@ extern crate simple_logger;
 
 use std::env;
 
-use lambda_http::{handler, http::Method, IntoResponse, Request};
 use lambda_http::lambda_runtime::{self, Context as LambdaRuntimeContext};
+use lambda_http::{handler, http::Method, IntoResponse, Request};
 use log::LevelFilter;
 use rusoto_core::Region;
 use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
