@@ -6,10 +6,7 @@ extern crate simple_logger;
 use std::env;
 
 use lambda_http::{handler, http::Method, IntoResponse, Request};
-use lambda_http::{
-    http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
-    lambda_runtime::{self, Context as LambdaRuntimeContext},
-};
+use lambda_http::lambda_runtime::{self, Context as LambdaRuntimeContext};
 use log::LevelFilter;
 use rusoto_core::Region;
 use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
@@ -51,13 +48,7 @@ async fn main() -> Result<(), Error> {
         .init()
         .unwrap();
 
-    lambda_runtime::run(handler(|req, ctx| async {
-        let mut res = process_request(req, ctx).await?.into_response();
-        let headers = res.headers_mut();
-        headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, "*".parse().unwrap());
-        Ok(res)
-    }))
-    .await?;
+    lambda_runtime::run(handler(process_request)).await?;
     Ok(())
 }
 
