@@ -10,10 +10,12 @@ pub struct Course {
     pub title: String,
     pub description: String,
     #[serde(default = "Vec::new")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub grading_rule: Vec<GradeComponent>,
     #[serde(default = "chrono::offset::Utc::now")]
     pub created_at: DateTime<Utc>,
-    #[serde(default = "default_course_closed_at")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub closed_at: Option<DateTime<Utc>>,
     pub owner_id: Uuid,
 }
@@ -25,8 +27,4 @@ pub struct GradeComponent {
     pub grade_component_id: Uuid,
     pub title: String,
     pub final_grade_percentage: f32,
-}
-
-fn default_course_closed_at() -> Option<DateTime<Utc>> {
-    None
 }
