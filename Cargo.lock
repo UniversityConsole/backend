@@ -133,6 +133,7 @@ dependencies = [
  "identity_service_client",
  "identity_service_commons",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -144,22 +145,6 @@ dependencies = [
  "atty",
  "lazy_static",
  "winapi",
-]
-
-[[package]]
-name = "commons"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "lambda_http",
- "rusoto_core",
- "rusoto_dynamodb",
- "serde",
- "serde_json",
- "sha2",
- "simple-error",
- "utils",
- "uuid",
 ]
 
 [[package]]
@@ -189,6 +174,26 @@ name = "core-foundation-sys"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
+
+[[package]]
+name = "course_service_commons"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "chrono",
+ "lambda_http",
+ "reqwest",
+ "rusoto_core",
+ "rusoto_dynamodb",
+ "serde",
+ "serde_dynamodb",
+ "serde_json",
+ "service_core",
+ "sha2",
+ "simple-error",
+ "utils",
+ "uuid",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -1343,6 +1348,27 @@ dependencies = [
 [[package]]
 name = "service"
 version = "0.1.0"
+dependencies = [
+ "base64",
+ "bytes",
+ "chrono",
+ "course_service_commons",
+ "identity_service_client",
+ "identity_service_commons",
+ "lambda_http",
+ "log",
+ "rusoto_core",
+ "rusoto_dynamodb",
+ "serde",
+ "serde_dynamodb",
+ "serde_json",
+ "service_client_runtime",
+ "service_core",
+ "sha2",
+ "simple_logger",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "service_client_runtime"

@@ -7,3 +7,26 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+service_core = { path = "../../core" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_dynamodb = { version = "0.8.0", default-features = false, features = ["rustls"] }
+tokio = { version = "1.5.0", features = ["full"] }
+lambda_http = "0.3.0"
+simple_logger = "1.11.0"
+log = "0.4.14"
+course_service_commons = { path = "../commons" }
+rusoto_core = { version = "0.46.0", default-features = false, features = ["rustls"] }
+rusoto_dynamodb = { version = "0.46.0", default-features = false, features = ["rustls"] }
+uuid = { version = "0.8.2", features = ["v4", "serde"] }
+bytes = "1.0.1"
+sha2 = "0.9.5"
+base64 = "0.13.0"
+identity_service_client = { path = "../../identity_service/client" }
+identity_service_commons = { path = "../../identity_service/commons" }
+chrono = { version = "0.4.19", features = ["serde"] }
+service_client_runtime = { path = "../../../service_client_runtime" }
+
+[package.metadata]
+artifact_type = "lambda_bootstrap"
+service_name = "course_service"

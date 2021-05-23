@@ -9,3 +9,4 @@ edition = "2018"
 identity_service_client = { path = "../services/identity_service/client" }
 identity_service_commons = { path = "../services/identity_service/commons" }
 tokio = { version = "1.5.0", features = ["full"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
