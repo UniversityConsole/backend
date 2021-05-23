@@ -102,7 +102,7 @@ fn validate_grading_rule(
     let total_percentage = components
         .iter()
         .fold(0 as f32, |acc, i| acc + i.final_grade_percentage);
-    if (total_percentage - 1.0).abs() < f32::EPSILON {
+    if (total_percentage - 1.0).abs() > f32::EPSILON {
         return Err(EndpointError::BadRequestError(
             "Grade components do not sum up to 100%.".to_string(),
         ));
