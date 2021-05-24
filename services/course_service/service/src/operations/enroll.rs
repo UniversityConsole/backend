@@ -84,7 +84,8 @@ async fn inner_handler(
             item: serde_dynamodb::to_hashmap(&enrollment).unwrap(),
             table_name: ctx.course_enrollments_table.clone(),
             condition_expression: Some(
-                "attribute_not_exists(CourseId) and attribute_not_exists(UserAccountId)".to_string(),
+                "attribute_not_exists(CourseId) and attribute_not_exists(UserAccountId)"
+                    .to_string(),
             ),
             ..Default::default()
         })

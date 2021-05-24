@@ -105,6 +105,10 @@ async fn process_request(
             Ok(r) => r.into_response(),
             Err(r) => r.into_response(),
         },
+        "PutGrade" => match crate::operations::put_grade::handler(&request, &context).await {
+            Ok(r) => r.into_response(),
+            Err(r) => r.into_response(),
+        },
         _ => EndpointError::<GenericServiceError>::BadRequestError("Unknown operation".to_string())
             .into_response(),
     })

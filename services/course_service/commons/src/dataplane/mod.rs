@@ -38,6 +38,13 @@ pub struct CourseEnrollment {
     pub user_account_id: Uuid,
     pub enrolled_at: DateTime<Utc>,
     #[serde(default)]
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub grades: HashMap<Uuid, Vec<u8>>,
+    pub grades: HashMap<Uuid, Vec<Grade>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+#[serde(deny_unknown_fields)]
+pub struct Grade {
+    pub value: u8,
+    pub timestamp: DateTime<Utc>,
 }
