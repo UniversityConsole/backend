@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -27,4 +28,16 @@ pub struct GradeComponent {
     pub grade_component_id: Uuid,
     pub title: String,
     pub final_grade_percentage: f32,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+#[serde(deny_unknown_fields)]
+pub struct CourseEnrollment {
+    pub course_id: Uuid,
+    pub user_account_id: Uuid,
+    pub enrolled_at: DateTime<Utc>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub grades: HashMap<Uuid, Vec<u8>>,
 }

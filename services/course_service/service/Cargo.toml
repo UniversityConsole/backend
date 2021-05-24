@@ -1,5 +1,5 @@
 [package]
-name = "service"
+name = "course_service_lambda"
 version = "0.1.0"
 authors = ["Victor Barbu <vicbarbu@pm.me>"]
 edition = "2018"

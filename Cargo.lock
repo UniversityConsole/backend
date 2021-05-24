@@ -196,6 +196,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "course_service_lambda"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bytes",
+ "chrono",
+ "course_service_commons",
+ "identity_service_client",
+ "identity_service_commons",
+ "lambda_http",
+ "log",
+ "rusoto_core",
+ "rusoto_dynamodb",
+ "serde",
+ "serde_dynamodb",
+ "serde_json",
+ "service_client_runtime",
+ "service_core",
+ "sha2",
+ "simple_logger",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1343,31 +1368,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "service"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bytes",
- "chrono",
- "course_service_commons",
- "identity_service_client",
- "identity_service_commons",
- "lambda_http",
- "log",
- "rusoto_core",
- "rusoto_dynamodb",
- "serde",
- "serde_dynamodb",
- "serde_json",
- "service_client_runtime",
- "service_core",
- "sha2",
- "simple_logger",
- "tokio",
- "uuid",
 ]
 
 [[package]]
