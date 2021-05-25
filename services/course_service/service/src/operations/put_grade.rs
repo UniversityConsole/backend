@@ -77,7 +77,7 @@ async fn inner_handler(
     let output = ctx
         .dynamodb_client
         .get_item(GetItemInput {
-            table_name: ctx.courses_table.clone(),
+            table_name: ctx.course_enrollments_table.clone(),
             key: CourseEnrollmentPk::new(input.course_id.clone(), input.account_id.clone())
                 .as_key(),
             ..GetItemInput::default()
@@ -141,15 +141,19 @@ async fn inner_handler(
             key: CourseEnrollmentPk::new(input.course_id.clone(), input.account_id.clone())
                 .as_key(),
             update_expression: Some(update_expression.to_string()),
-            expression_attribute_names: Some(expression_attribute_names),
-            expression_attribute_values: Some(expression_attribute_values),
+            expression_attribute_names: Some(expression_attribute_names.clone()),
+            expression_attribute_values: Some(expression_attribute_values.clone()),
             ..Default::default()
         })
         .await
         .map_err(|e| {
             log::error!(
-                "Failed to update item to DynamoDB. Original error: {:?}.",
-                e
+                "Failed to update item to DynamoDB. Original error: {:?}. \
+                Update expression: {}. Attribute names: {:?}. Attribute values: {:?}.",
+                e,
+                update_expression,
+                expression_attribute_names,
+                expression_attribute_values
             );
             EndpointError::InternalError
         })?;
