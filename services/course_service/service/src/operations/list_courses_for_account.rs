@@ -20,7 +20,7 @@ async fn inner_handler(
     ctx: &Context,
     input: &ListCoursesForAccountInput,
 ) -> Result<ListCoursesForAccountOutput, EndpointError<GenericServiceError>> {
-    let proj_expr = ["UserAccountId"].join(",");
+    let proj_expr = ["CourseId"].join(",");
     let mut attr_vals = HashMap::new();
     attr_vals.insert(
         ":account_id".to_string(),
