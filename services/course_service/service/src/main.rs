@@ -101,6 +101,12 @@ async fn process_request(
             Ok(r) => r.into_response(),
             Err(r) => r.into_response(),
         },
+        "ListCoursesForAccount" => {
+            match crate::operations::list_courses_for_account::handler(&request, &context).await {
+                Ok(r) => r.into_response(),
+                Err(r) => r.into_response(),
+            }
+        }
         "Enroll" => match crate::operations::enroll::handler(&request, &context).await {
             Ok(r) => r.into_response(),
             Err(r) => r.into_response(),
