@@ -109,6 +109,12 @@ async fn process_request(
             Ok(r) => r.into_response(),
             Err(r) => r.into_response(),
         },
+        "DescribeCourse" => {
+            match crate::operations::describe_course::handler(&request, &context).await {
+                Ok(r) => r.into_response(),
+                Err(r) => r.into_response(),
+            }
+        }
         _ => EndpointError::<GenericServiceError>::BadRequestError("Unknown operation".to_string())
             .into_response(),
     })
