@@ -1,8 +1,6 @@
 use crate::Context;
-use course_service_commons::{
-    controlplane::get_grades::*,
-    dataplane::{CourseEnrollment, Grade, GradeComponent},
-};
+use course_service_commons::controlplane::get_grades::*;
+use course_service_commons::dataplane::{Course, CourseEnrollment, Grade};
 use lambda_http::Request;
 use rusoto_dynamodb::{AttributeValue, GetItemInput};
 use serde::Serialize;
@@ -97,14 +95,12 @@ impl Processor<'_> {
         &self,
         grades: &HashMap<Uuid, Vec<Grade>>,
     ) -> Result<u8, EndpointError<GetGradesError>> {
-        let proj_expr = "GradingRule".to_string();
         let output = self
             .ctx
             .dynamodb_client
             .get_item(GetItemInput {
                 table_name: self.ctx.courses_table.clone(),
                 key: CourseIdPk::new(self.input.course_id.clone()).as_key(),
-                projection_expression: Some(proj_expr),
                 ..Default::default()
             })
             .await
@@ -118,12 +114,16 @@ impl Processor<'_> {
         }
 
         let item = output.item.unwrap();
-        let grading_rule: Vec<GradeComponent> = serde_dynamodb::from_hashmap(item.clone())
-            .map_err(|e| {
-                log::error!("Failed deserializing item from DynamoDB. Error: {:?}. Item: {:?}.", e, item);
-                EndpointError::InternalError
-            })?;
-        let grading_rule: HashMap<Uuid, f32> = grading_rule
+        let course: Course = serde_dynamodb::from_hashmap(item.clone()).map_err(|e| {
+            log::error!(
+                "Failed deserializing item from DynamoDB. Error: {:?}. Item: {:?}.",
+                e,
+                item
+            );
+            EndpointError::InternalError
+        })?;
+        let grading_rule: HashMap<Uuid, f32> = course
+            .grading_rule
             .into_iter()
             .map(|e| (e.grade_component_id, e.final_grade_percentage))
             .collect();
