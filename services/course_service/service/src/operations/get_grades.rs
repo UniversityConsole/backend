@@ -116,9 +116,11 @@ impl Processor<'_> {
         if output.item.is_none() {
             return Err(EndpointError::Operation(GetGradesError::CourseNotFound));
         }
-        let grading_rule: Vec<GradeComponent> = serde_dynamodb::from_hashmap(output.item.unwrap())
+
+        let item = output.item.unwrap();
+        let grading_rule: Vec<GradeComponent> = serde_dynamodb::from_hashmap(item.clone())
             .map_err(|e| {
-                log::error!("Failed deserializing item from DynamoDB. Error: {:?}.", e);
+                log::error!("Failed deserializing item from DynamoDB. Error: {:?}. Item: {:?}.", e, item);
                 EndpointError::InternalError
             })?;
         let grading_rule: HashMap<Uuid, f32> = grading_rule
