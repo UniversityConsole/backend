@@ -115,6 +115,10 @@ async fn process_request(
             Ok(r) => r.into_response(),
             Err(r) => r.into_response(),
         },
+        "GetGrades" => match crate::operations::get_grades::handler(&request, &context).await {
+            Ok(r) => r.into_response(),
+            Err(r) => r.into_response(),
+        },
         "DescribeCourse" => {
             match crate::operations::describe_course::handler(&request, &context).await {
                 Ok(r) => r.into_response(),
