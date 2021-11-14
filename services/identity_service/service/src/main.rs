@@ -1,111 +1,61 @@
+mod context;
 mod operations;
+mod svc;
 
-extern crate log;
-extern crate simple_logger;
-
-use std::env;
-
-use lambda_http::lambda_runtime::{self, Context as LambdaRuntimeContext};
-use lambda_http::{handler, http::Method, IntoResponse, Request};
+use context::Context;
 use log::LevelFilter;
+use operations::create_account::create_account;
 use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
-use service_core::{EndpointError, GenericServiceError};
+use rusoto_dynamodb::DynamoDbClient;
 use simple_logger::SimpleLogger;
+use svc::identity_service_server::IdentityService;
+use svc::identity_service_server::IdentityServiceServer;
+use svc::CreateAccountInput;
+use svc::CreateAccountOutput;
+use tonic::transport::Server;
+use tonic::Request;
+use tonic::Response;
+use tonic::Status;
 
-type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+#[derive(Debug)]
+struct IdentityServiceImpl;
 
-pub struct Context {
-    pub dynamodb_client: Box<dyn DynamoDb + Send + Sync + 'static>,
-    pub datastore_name: String,
-}
+#[tonic::async_trait]
+impl IdentityService for IdentityServiceImpl {
+    async fn create_account(
+        &self,
+        request: Request<CreateAccountInput>,
+    ) -> Result<Response<CreateAccountOutput>, Status> {
+        let ctx = Context {
+            dynamodb_client: Box::new(DynamoDbClient::new(Region::Custom {
+                name: "eu-west-1".to_string(),
+                endpoint: Context::key(&context::ContextKey::DynamoDbEndpoint),
+            })),
+            accounts_table_name: Context::key(&context::ContextKey::AccountsTableName),
+        };
 
-impl Context {
-    pub fn env_datastore_name() -> String {
-        const VAR: &str = "USER_ACCOUNTS_TABLE_NAME";
-        let name = env::var(VAR);
-
-        if let Err(_) = name {
-            panic!("Environment variable {} not set.", VAR);
-        }
-
-        name.unwrap()
+        create_account(&ctx, request.get_ref())
+            .await
+            .map(|output| Response::new(output))
+            .map_err(|err| err.into())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let debug_enabled = env::var("LAMBDA_DEBUG").is_ok();
-    let log_level = if debug_enabled {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Info
-    };
-
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
         .with_level(LevelFilter::Info)
-        .with_module_level(module_path!(), log_level)
+        .with_module_level(module_path!(), LevelFilter::Debug)
         .init()
         .unwrap();
 
-    lambda_runtime::run(handler(process_request)).await?;
+    let addr = "[::1]:8080".parse().unwrap();
+    let identity_service = IdentityServiceImpl {};
+    let server = IdentityServiceServer::new(identity_service);
+
+    Server::builder().add_service(server).serve(addr).await?;
+
+    log::info!("Listening on {}", addr);
+
     Ok(())
-}
-
-async fn process_request(
-    request: Request,
-    _: LambdaRuntimeContext,
-) -> Result<impl IntoResponse, Error> {
-    let method = request.method();
-    if method != Method::POST {
-        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
-            "Expected POST request.".to_string(),
-        )
-        .into_response());
-    }
-
-    let operation = &request.headers().get("X-Uc-Operation");
-    if let None = operation {
-        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
-            "Expected operation in \"X-Uc-Operation\" header.".to_string(),
-        )
-        .into_response());
-    }
-    let operation = operation.unwrap().to_str();
-    if let Err(_) = operation {
-        return Ok(EndpointError::<GenericServiceError>::BadRequestError(
-            "Operation must be an ANSI string.".to_string(),
-        )
-        .into_response());
-    }
-    let operation = operation.unwrap();
-    let context = Context {
-        dynamodb_client: Box::new(DynamoDbClient::new(Region::EuWest1)),
-        datastore_name: Context::env_datastore_name(),
-    };
-
-    log::debug!("Using DynamoDB table \"{}\".", &context.datastore_name);
-
-    Ok(match operation {
-        "CreateAccount" => {
-            match crate::operations::create_account::handler(&request, &context).await {
-                Ok(r) => r.into_response(),
-                Err(r) => r.into_response(),
-            }
-        }
-        "ListAccounts" => {
-            match crate::operations::list_accounts::handler(&request, &context).await {
-                Ok(r) => r.into_response(),
-                Err(r) => r.into_response(),
-            }
-        }
-        "DescribeAccount" => {
-            match crate::operations::describe_account::handler(&request, &context).await {
-                Ok(r) => r.into_response(),
-                Err(r) => r.into_response(),
-            }
-        }
-        _ => EndpointError::<GenericServiceError>::BadRequestError("Unknown operation".to_string())
-            .into_response(),
-    })
 }

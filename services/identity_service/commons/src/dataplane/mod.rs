@@ -11,7 +11,6 @@ pub struct UserAccount {
     pub email: String,
     pub first_name: String,
     pub last_name: String,
-    pub gov_id: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     #[serde(serialize_with = "serialize_password")]
     #[serde(default = "String::new")]
@@ -40,7 +39,6 @@ mod tests {
             "Email": "example@example.com",
             "FirstName": "John",
             "LastName": "Doe",
-            "GovId": "JD",
             "Password": "super_secret"
         })
         .to_string();
@@ -50,7 +48,6 @@ mod tests {
             email: "example@example.com".to_string(),
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
-            gov_id: "JD".to_string(),
             password: "super_secret".to_string(),
         };
 
@@ -93,20 +90,12 @@ mod tests {
                 ..AttributeValue::default()
             },
         );
-        doc.insert(
-            "GovId".to_string(),
-            AttributeValue {
-                s: Some("JD".to_string()),
-                ..AttributeValue::default()
-            },
-        );
 
         let expected = UserAccount {
             account_id: Uuid::nil(),
             email: "john.doe@example.com".to_string(),
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
-            gov_id: "JD".to_string(),
             password: "".to_string(),
         };
         let actual = serde_dynamodb::from_hashmap::<UserAccount, _>(doc).unwrap();
@@ -124,7 +113,6 @@ mod tests {
             email: "john.doe@example.com".to_string(),
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
-            gov_id: "JD".to_string(),
             password: "super_secret".to_string(),
         };
         let serialized = serde_dynamodb::to_hashmap(&account).unwrap();

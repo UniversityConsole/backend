@@ -1,5 +1,4 @@
 use core::panic;
-use lambda_http::{Body, IntoResponse, Response};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,6 +6,8 @@ use std::{
     fmt::{Debug, Display},
 };
 use strum::AsRefStr;
+use tonic::Code;
+use tonic::Status;
 
 pub trait HttpStatus {
     fn status_code(&self) -> StatusCode;
@@ -41,30 +42,33 @@ where
     }
 }
 
-impl<E> HttpStatus for EndpointError<E>
+impl<E> Into<Status> for EndpointError<E>
 where
     E: HttpError,
 {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            EndpointError::BadRequestError(_) => StatusCode::BAD_REQUEST,
-            EndpointError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
-            EndpointError::Operation(e) => e.status_code(),
-        }
+    fn into(self) -> Status {
+        Status::new(self.status_code(), self.message())
     }
 }
 
-impl<E> IntoResponse for EndpointError<E>
+impl<E> EndpointError<E>
 where
     E: HttpError,
 {
-    fn into_response(self) -> Response<Body> {
-        let body = serde_json::to_string(&self).unwrap();
-        Response::builder()
-            .status(self.status_code())
-            .header("Content-Type", "application/json")
-            .body(Body::Text(body))
-            .unwrap()
+    fn status_code(&self) -> Code {
+        match self {
+            EndpointError::BadRequestError(_) => Code::InvalidArgument,
+            EndpointError::InternalError => Code::Internal,
+            EndpointError::Operation(_) => Code::Internal, // TODO Use something provided by the error.
+        }
+    }
+
+    fn message(&self) -> String {
+        match self {
+            EndpointError::BadRequestError(msg) => msg.to_string(),
+            EndpointError::InternalError => "Internal error".to_string(),
+            EndpointError::Operation(e) => e.to_string(),
+        }
     }
 }
 

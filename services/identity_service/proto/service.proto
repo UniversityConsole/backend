@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package identity_service;
+
+service IdentityService {
+    rpc CreateAccount(CreateAccountInput) returns (CreateAccountOutput) {}
+}
+
+message CreateAccountInput {
+    AccountAttributes account_attributes = 1;
+}
+
+message CreateAccountOutput {
+    string account_id = 1;
+}
+
+message AccountAttributes {
+    string email = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string password = 4;
+}
