@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init()
         .unwrap();
 
-    let addr = "[::1]:8080".parse().unwrap();
+    let addr = "0.0.0.0:8080".parse().unwrap();
     let ctx = Context::from_env();
     let identity_service = IdentityServiceImpl { ctx };
     let server = IdentityServiceServer::new(identity_service);

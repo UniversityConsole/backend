@@ -578,12 +578,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "identity_service_lambda"
-version = "0.1.0"
+name = "identity_service"
+version = "0.2.0"
 dependencies = [
  "base64",
  "bytes",
- "lambda_http",
  "log",
  "prost",
  "rusoto_core",
