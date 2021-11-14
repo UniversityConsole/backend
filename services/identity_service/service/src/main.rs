@@ -6,6 +6,7 @@ use context::Context;
 use log::LevelFilter;
 use operations::create_account::create_account;
 use operations::describe_account::describe_account;
+use operations::list_accounts::list_accounts;
 use simple_logger::SimpleLogger;
 use svc::identity_service_server::IdentityService;
 use svc::identity_service_server::IdentityServiceServer;
@@ -39,6 +40,16 @@ impl IdentityService for IdentityServiceImpl {
         request: Request<DescribeAccountInput>,
     ) -> Result<Response<DescribeAccountOutput>, Status> {
         describe_account(&self.ctx, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
+    }
+
+    async fn list_accounts(
+        &self,
+        request: Request<svc::ListAccountsInput>,
+    ) -> Result<Response<svc::ListAccountsOutput>, Status> {
+        list_accounts(&self.ctx, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())

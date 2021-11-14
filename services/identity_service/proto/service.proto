@@ -1,10 +1,13 @@
 syntax = "proto3";
 
+import "google/protobuf/wrappers.proto";
+
 package identity_service;
 
 service IdentityService {
     rpc CreateAccount(CreateAccountInput) returns (CreateAccountOutput);
     rpc DescribeAccount(DescribeAccountInput) returns (DescribeAccountOutput);
+    rpc ListAccounts(ListAccountsInput) returns (ListAccountsOutput);
 }
 
 
@@ -33,6 +36,19 @@ message DescribeAccountInput {
 message DescribeAccountOutput {
     Account account = 1;
 }
+
+
+message ListAccountsInput {
+    bool include_non_discoverable = 1;
+    google.protobuf.StringValue starting_token = 2;
+    uint32 page_size = 3;
+}
+
+message ListAccountsOutput {
+    google.protobuf.StringValue next_token = 1;
+    repeated Account accounts = 2;
+}
+
 
 message Account {
     string account_id = 1;
