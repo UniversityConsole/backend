@@ -12,8 +12,6 @@ pub(crate) async fn create_account(
     ctx: &Context,
     input: &CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
-    log::debug!("CreateAccount input: {:?}", &input);
-
     let account_attributes =
         input
             .account_attributes
@@ -34,6 +32,7 @@ pub(crate) async fn create_account(
         first_name: account_attributes.first_name.clone(),
         last_name: account_attributes.last_name.clone(),
         password: account_attributes.password.clone(),
+        discoverable: account_attributes.discoverable,
     };
 
     ctx.dynamodb_client

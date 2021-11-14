@@ -5,20 +5,22 @@ mod svc;
 use context::Context;
 use log::LevelFilter;
 use operations::create_account::create_account;
-use rusoto_core::Region;
-use rusoto_dynamodb::DynamoDbClient;
+use operations::describe_account::describe_account;
 use simple_logger::SimpleLogger;
 use svc::identity_service_server::IdentityService;
 use svc::identity_service_server::IdentityServiceServer;
 use svc::CreateAccountInput;
 use svc::CreateAccountOutput;
+use svc::DescribeAccountInput;
+use svc::DescribeAccountOutput;
 use tonic::transport::Server;
 use tonic::Request;
 use tonic::Response;
 use tonic::Status;
 
-#[derive(Debug)]
-struct IdentityServiceImpl;
+struct IdentityServiceImpl {
+    pub ctx: Context,
+}
 
 #[tonic::async_trait]
 impl IdentityService for IdentityServiceImpl {
@@ -26,17 +28,19 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<CreateAccountInput>,
     ) -> Result<Response<CreateAccountOutput>, Status> {
-        let ctx = Context {
-            dynamodb_client: Box::new(DynamoDbClient::new(Region::Custom {
-                name: "eu-west-1".to_string(),
-                endpoint: Context::key(&context::ContextKey::DynamoDbEndpoint),
-            })),
-            accounts_table_name: Context::key(&context::ContextKey::AccountsTableName),
-        };
-
-        create_account(&ctx, request.get_ref())
+        create_account(&self.ctx, request.get_ref())
             .await
             .map(|output| Response::new(output))
+            .map_err(|err| err.into())
+    }
+
+    async fn describe_account(
+        &self,
+        request: Request<DescribeAccountInput>,
+    ) -> Result<Response<DescribeAccountOutput>, Status> {
+        describe_account(&self.ctx, request.get_ref())
+            .await
+            .map(Response::new)
             .map_err(|err| err.into())
     }
 }
@@ -50,12 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     let addr = "[::1]:8080".parse().unwrap();
-    let identity_service = IdentityServiceImpl {};
+    let ctx = Context::from_env();
+    let identity_service = IdentityServiceImpl { ctx };
     let server = IdentityServiceServer::new(identity_service);
 
     Server::builder().add_service(server).serve(addr).await?;
-
-    log::info!("Listening on {}", addr);
 
     Ok(())
 }

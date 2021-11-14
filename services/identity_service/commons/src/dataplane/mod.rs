@@ -15,6 +15,7 @@ pub struct UserAccount {
     #[serde(serialize_with = "serialize_password")]
     #[serde(default = "String::new")]
     pub password: String,
+    pub discoverable: bool,
 }
 
 fn serialize_password<S>(val: &String, serializer: S) -> Result<S::Ok, S::Error>
@@ -39,7 +40,8 @@ mod tests {
             "Email": "example@example.com",
             "FirstName": "John",
             "LastName": "Doe",
-            "Password": "super_secret"
+            "Password": "super_secret",
+            "Discoverable": true
         })
         .to_string();
 
@@ -49,6 +51,7 @@ mod tests {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             password: "super_secret".to_string(),
+            discoverable: true,
         };
 
         assert_eq!(expected, serde_json::from_str(&input.as_str()).unwrap());
@@ -90,6 +93,13 @@ mod tests {
                 ..AttributeValue::default()
             },
         );
+        doc.insert(
+            "Discoverable".to_string(),
+            AttributeValue {
+                bool: Some(true),
+                ..AttributeValue::default()
+            },
+        );
 
         let expected = UserAccount {
             account_id: Uuid::nil(),
@@ -97,6 +107,7 @@ mod tests {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             password: "".to_string(),
+            discoverable: true,
         };
         let actual = serde_dynamodb::from_hashmap::<UserAccount, _>(doc).unwrap();
 
@@ -114,6 +125,7 @@ mod tests {
             first_name: "John".to_string(),
             last_name: "Doe".to_string(),
             password: "super_secret".to_string(),
+            discoverable: false,
         };
         let serialized = serde_dynamodb::to_hashmap(&account).unwrap();
         let serialized_password_attr = serialized.get(&"Password".to_string()).unwrap();
