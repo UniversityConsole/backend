@@ -1,27 +1,34 @@
-use crate::context::Context;
 use crate::svc::CreateAccountInput;
 use crate::svc::CreateAccountOutput;
-use identity_service_commons::dataplane::UserAccount;
-use identity_service_commons::CreateAccountError;
+use crate::user_account::UserAccount;
+use crate::Context;
 use rusoto_core::RusotoError;
 use rusoto_dynamodb::{PutItemError, PutItemInput};
-use service_core::EndpointError;
+use service_core::endpoint_error::EndpointError;
+use service_core::operation_error::OperationError;
+use std::error::Error;
+use std::fmt::Display;
 use uuid::Uuid;
+
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum CreateAccountError {
+    DuplicateAccountError,
+}
 
 pub(crate) async fn create_account(
     ctx: &Context,
     input: &CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
-    let account_attributes =
-        input
-            .account_attributes
-            .as_ref()
-            .ok_or(EndpointError::BadRequestError(
-                "Account attributes missing.".to_string(),
-            ))?;
+    let account_attributes = input
+        .account_attributes
+        .as_ref()
+        .ok_or(EndpointError::Validation(
+            "Account attributes missing.".to_string(),
+        ))?;
 
     if account_attributes.password.is_empty() {
-        return Err(EndpointError::BadRequestError(String::from(
+        return Err(EndpointError::Validation(String::from(
             "Password is required.",
         )));
     }
@@ -49,11 +56,31 @@ pub(crate) async fn create_account(
             }
             _ => {
                 log::error!("Failed creating item in DynamoDB: {:?}", err);
-                EndpointError::InternalError
+                EndpointError::Internal
             }
         })?;
 
     Ok(CreateAccountOutput {
         account_id: account.account_id.to_string(),
     })
+}
+
+impl Display for CreateAccountError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CreateAccountError::DuplicateAccountError => {
+                write!(f, "An account with this email address already exists.")
+            }
+        }
+    }
+}
+
+impl Error for CreateAccountError {}
+
+impl OperationError for CreateAccountError {
+    fn code(&self) -> tonic::Code {
+        match self {
+            CreateAccountError::DuplicateAccountError => tonic::Code::AlreadyExists,
+        }
+    }
 }

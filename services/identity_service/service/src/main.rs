@@ -1,6 +1,9 @@
+#![feature(never_type)]
+
 mod context;
 mod operations;
 mod svc;
+mod user_account;
 
 use context::Context;
 use log::LevelFilter;

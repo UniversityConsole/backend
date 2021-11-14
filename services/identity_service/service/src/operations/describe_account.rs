@@ -1,12 +1,14 @@
 use crate::svc::DescribeAccountInput;
 use crate::svc::DescribeAccountOutput;
+use crate::user_account::UserAccount;
 use crate::Context;
-use identity_service_commons::dataplane::UserAccount;
-use identity_service_commons::DescribeAccountError;
 use rusoto_dynamodb::{AttributeValue, GetItemInput, QueryInput};
 use serde::{Deserialize, Serialize};
-use service_core::EndpointError;
+use service_core::endpoint_error::EndpointError;
+use service_core::operation_error::OperationError;
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt::Display;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
@@ -17,12 +19,18 @@ struct AccountIdIndexProjection {
     email: String,
 }
 
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum DescribeAccountError {
+    NotFoundError,
+}
+
 pub(crate) async fn describe_account(
     ctx: &Context,
     input: &DescribeAccountInput,
 ) -> Result<DescribeAccountOutput, EndpointError<DescribeAccountError>> {
     let account_id = Uuid::parse_str(input.account_id.clone().as_mut())
-        .map_err(|_| EndpointError::BadRequestError("Invalid account ID provided.".to_string()))?;
+        .map_err(|_| EndpointError::Validation("Invalid account ID provided.".to_string()))?;
     let mut query_params = HashMap::new();
     query_params.insert(
         ":uuid".to_string(),
@@ -45,7 +53,7 @@ pub(crate) async fn describe_account(
         .await
         .map_err(|e| {
             log::error!("Failed to query DynamoDB. Original error: {:?}.", e);
-            EndpointError::InternalError
+            EndpointError::Internal
         })?;
 
     if output.count.unwrap() == 0 {
@@ -86,7 +94,7 @@ pub(crate) async fn describe_account(
                 "Failed to retrieve item from DynamoDB. Original error: {:?}.",
                 e
             );
-            EndpointError::InternalError
+            EndpointError::Internal
         })?;
 
     match output.item {
@@ -102,7 +110,7 @@ pub(crate) async fn describe_account(
         Some(item) => {
             let user_account: UserAccount = serde_dynamodb::from_hashmap(item).map_err(|e| {
                 log::error!("Invalid record in DynamoDB. Original error: {:?}.", e);
-                EndpointError::InternalError
+                EndpointError::Internal
             })?;
             Ok(DescribeAccountOutput {
                 account: Some(crate::svc::Account {
@@ -116,3 +124,21 @@ pub(crate) async fn describe_account(
         }
     }
 }
+
+impl OperationError for DescribeAccountError {
+    fn code(&self) -> tonic::Code {
+        match self {
+            Self::NotFoundError => tonic::Code::NotFound,
+        }
+    }
+}
+
+impl Display for DescribeAccountError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFoundError => write!(f, "Account not found."),
+        }
+    }
+}
+
+impl Error for DescribeAccountError {}

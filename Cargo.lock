@@ -142,16 +142,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "client_test"
-version = "0.1.0"
-dependencies = [
- "identity_service_client",
- "identity_service_commons",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "colored"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -189,51 +179,6 @@ name = "core-foundation-sys"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
-
-[[package]]
-name = "course_service_commons"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "chrono",
- "lambda_http",
- "reqwest",
- "rusoto_core",
- "rusoto_dynamodb",
- "serde",
- "serde_dynamodb",
- "serde_json",
- "service_core",
- "sha2",
- "simple-error",
- "utils",
- "uuid",
-]
-
-[[package]]
-name = "course_service_lambda"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bytes",
- "chrono",
- "course_service_commons",
- "identity_service_client",
- "identity_service_commons",
- "lambda_http",
- "log",
- "rusoto_core",
- "rusoto_dynamodb",
- "serde",
- "serde_dynamodb",
- "serde_json",
- "service_client_runtime",
- "service_core",
- "sha2",
- "simple_logger",
- "tokio",
- "uuid",
-]
 
 [[package]]
 name = "cpufeatures"
@@ -633,41 +578,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "identity_service_client"
-version = "0.1.0"
-dependencies = [
- "client_generator",
- "identity_service_commons",
- "service_client_runtime",
-]
-
-[[package]]
-name = "identity_service_commons"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "lambda_http",
- "reqwest",
- "rusoto_core",
- "rusoto_dynamodb",
- "serde",
- "serde_dynamodb",
- "serde_json",
- "service_core",
- "sha2",
- "simple-error",
- "strum",
- "utils",
- "uuid",
-]
-
-[[package]]
 name = "identity_service_lambda"
 version = "0.1.0"
 dependencies = [
  "base64",
  "bytes",
- "identity_service_commons",
  "lambda_http",
  "log",
  "prost",
@@ -1573,12 +1488,6 @@ checksum = "16f1d0fef1604ba8f7a073c7e701f213e056707210e9020af4528e0101ce11a6"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "simple-error"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc47a29ce97772ca5c927f75bac34866b16d64e07f330c3248e2d7226623901b"
 
 [[package]]
 name = "simple_logger"

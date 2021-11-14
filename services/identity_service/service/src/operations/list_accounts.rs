@@ -1,21 +1,19 @@
+use crate::user_account::UserAccount;
 use crate::Context;
 use base64;
-use identity_service_commons::dataplane::UserAccount;
-use identity_service_commons::default_page_size;
-use identity_service_commons::ListAccountsError;
 use rusoto_dynamodb::{AttributeValue, ScanInput};
 use serde_dynamodb::from_hashmap;
-use service_core::EndpointError;
+use service_core::endpoint_error::EndpointError;
 use std::collections::HashMap;
 
 pub(crate) async fn list_accounts(
     ctx: &Context,
     input: &crate::svc::ListAccountsInput,
-) -> Result<crate::svc::ListAccountsOutput, EndpointError<ListAccountsError>> {
-    let _page_size = if input.page_size > 0 {
+) -> Result<crate::svc::ListAccountsOutput, EndpointError<!>> {
+    let page_size = if input.page_size > 0 {
         input.page_size
     } else {
-        default_page_size()
+        32
     };
 
     // TODO Find a way not to hard-code this.
@@ -29,10 +27,10 @@ pub(crate) async fn list_accounts(
     let projection_expression = projection_fields.join(",");
     let page_start = if let Some(v) = &input.starting_token {
         const PARSE_ERR_MSG: &str = "Could not parse StartingToken.";
-        let v = base64::decode(&v)
-            .map_err(|_| EndpointError::BadRequestError(PARSE_ERR_MSG.to_string()))?;
+        let v =
+            base64::decode(&v).map_err(|_| EndpointError::Validation(PARSE_ERR_MSG.to_string()))?;
         let v = String::from_utf8(v)
-            .map_err(|_| EndpointError::BadRequestError(PARSE_ERR_MSG.to_string()))?;
+            .map_err(|_| EndpointError::Validation(PARSE_ERR_MSG.to_string()))?;
         let mut hm = HashMap::new();
         hm.insert(
             "Email".to_string(),
@@ -48,7 +46,7 @@ pub(crate) async fn list_accounts(
     let scan_output = ctx
         .dynamodb_client
         .scan(ScanInput {
-            limit: Some(input.page_size.into()),
+            limit: Some(page_size.into()),
             projection_expression: Some(projection_expression),
             table_name: ctx.accounts_table_name.clone(),
             exclusive_start_key: page_start,
@@ -73,7 +71,7 @@ pub(crate) async fn list_accounts(
             ..ScanInput::default()
         })
         .await
-        .map_err(|_| EndpointError::InternalError)?;
+        .map_err(|_| EndpointError::Internal)?;
 
     let next_token = match scan_output.last_evaluated_key {
         None => None,
@@ -96,7 +94,7 @@ pub(crate) async fn list_accounts(
                         err,
                         item_json
                     );
-                    EndpointError::InternalError
+                    EndpointError::Internal
                 })?;
                 accounts.push(account);
             }
