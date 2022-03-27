@@ -1,0 +1,7 @@
+version: 0.2
+run-as: root
+phases:
+  build:
+    commands:
+      - make services/identity_service
+      - docker build -t uc

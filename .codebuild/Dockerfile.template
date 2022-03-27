@@ -1,0 +1,7 @@
+FROM arm64v8/alpine:3.15
+
+RUN mkdir -p /uc/bin
+ADD __SERVICE_NAME__ /uc/bin/__SERVICE_NAME__
+
+EXPOSE 8080
+CMD /uc/bin/__SERVICE_NAME__
