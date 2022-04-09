@@ -13,4 +13,3 @@ RUN apk add --no-cache make python3 musl-dev openssl-dev protoc docker-cli
 
 # Prepare for builder
 WORKDIR /uc/src
-COPY . .
