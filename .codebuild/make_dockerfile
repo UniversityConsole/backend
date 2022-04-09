@@ -30,7 +30,7 @@ def main():
         if package['metadata']['service_name'] == service_name:
             service_crate = package
             break
-    
+
     if not service_crate:
         print(f"service does not exist. found services: {', '.join(found_services)}")
         os.sys.exit(-1)

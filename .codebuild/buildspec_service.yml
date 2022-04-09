@@ -1,7 +1,15 @@
 version: 0.2
 run-as: root
 phases:
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $ECR_REGISTRY_URI
   build:
     commands:
-      - make services/identity_service
-      - docker build -t uc
+      - make services/$SERVICE_NAME
+      - .codebuild/make_dockerfile $SERVICE_NAME
+      - docker build -t $ECR_REPOSITORY_NAME .
+  post_build:
+    commands:
+      - docker tag ${ECR_REPOSITORY_NAME}:latest
+      - docker push $ECR_TAG_URI
