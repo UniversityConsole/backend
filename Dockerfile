@@ -10,8 +10,4 @@ RUN rustup toolchain install nightly-2022-03-23 -t aarch64-unknown-linux-musl &&
 RUN apk update
 RUN apk add --no-cache make python3 musl-dev openssl-dev protoc docker-cli
 
-
-# Prepare for builder
-WORKDIR /uc/src
-
 # Volume with source code must be mounted at /uc/src

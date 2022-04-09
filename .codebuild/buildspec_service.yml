@@ -8,6 +8,7 @@ phases:
     commands:
       - make services/$SERVICE_NAME
       - .codebuild/make_dockerfile $SERVICE_NAME
+      - cd build
       - docker build -t $ECR_REPOSITORY_NAME .
   post_build:
     commands:
