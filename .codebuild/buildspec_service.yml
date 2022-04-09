@@ -1,5 +1,8 @@
 version: 0.2
 phases:
+  install:
+    commands:
+      - /usr/local/bin/dockerd-entrypoint.sh
   pre_build:
     commands:
       - docker ps
