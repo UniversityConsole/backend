@@ -10,4 +10,6 @@ RUN rustup toolchain install nightly-2022-03-23 -t aarch64-unknown-linux-musl &&
 RUN apk update
 RUN apk add --no-cache make python3 musl-dev openssl-dev protoc docker docker-cli bash aws-cli
 
-# Volume with source code must be mounted at /uc/src
+# Prepare CodeBuild for building Docker images
+COPY .codebuild/dockerd-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["/usr/local/bin/dockerd-entrypoint.sh"]
