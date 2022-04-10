@@ -52,6 +52,8 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<svc::ListAccountsInput>,
     ) -> Result<Response<svc::ListAccountsOutput>, Status> {
+        log::debug!("got ListAccounts request: {:?}.", &request);
+
         list_accounts(&self.ctx, request.get_ref())
             .await
             .map(Response::new)
@@ -62,7 +64,7 @@ impl IdentityService for IdentityServiceImpl {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
-        .with_level(LevelFilter::Info)
+        .with_level(LevelFilter::Debug)
         .with_module_level(module_path!(), LevelFilter::Debug)
         .init()
         .unwrap();

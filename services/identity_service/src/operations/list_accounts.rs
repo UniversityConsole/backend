@@ -43,6 +43,14 @@ pub(crate) async fn list_accounts(
     } else {
         None
     };
+
+    log::debug!(
+        "page_start = {:?} projection_expression = {:?} page_size = {}",
+        &page_start,
+        &projection_expression,
+        &page_size,
+    );
+
     let scan_output = ctx
         .dynamodb_client
         .scan(ScanInput {
@@ -71,7 +79,10 @@ pub(crate) async fn list_accounts(
             ..ScanInput::default()
         })
         .await
-        .map_err(|_| EndpointError::Internal)?;
+        .map_err(|e| {
+            log::error!("scan failed, error: {:?}", e);
+            EndpointError::Internal
+        })?;
 
     let next_token = match scan_output.last_evaluated_key {
         None => None,
@@ -110,6 +121,8 @@ pub(crate) async fn list_accounts(
                 .collect()
         }
     };
+
+    log::debug!("Got accounts: {:?}", &accounts);
 
     Ok(crate::svc::ListAccountsOutput {
         next_token,
