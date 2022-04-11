@@ -1,15 +1,17 @@
 use crate::operation_error::OperationError;
-use std::error::Error;
-use std::fmt::Display;
-use strum::AsRefStr;
 use tonic::Code;
 use tonic::Status;
 
-#[derive(Debug, AsRefStr)]
-pub enum EndpointError<E: OperationError> {
+#[derive(Debug, thiserror::Error)]
+pub enum EndpointError<E: OperationError + 'static> {
+    #[error("validation error: {0}")]
     Validation(String),
+
+    #[error("internal service error")]
     Internal,
-    Operation(E),
+
+    #[error("operation error: {0}")]
+    Operation(#[from] E),
 }
 
 impl<E: OperationError> OperationError for EndpointError<E> {
@@ -22,23 +24,22 @@ impl<E: OperationError> OperationError for EndpointError<E> {
     }
 }
 
-impl<E: OperationError> Error for EndpointError<E> {}
-
-impl<E: OperationError> Display for EndpointError<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let kind: &str = self.as_ref();
-        let msg = match self {
-            EndpointError::Validation(msg) => msg.clone(),
-            EndpointError::Internal => String::from("Internal server error."),
-            EndpointError::Operation(err) => err.to_string(),
-        };
-
-        write!(f, "{}: {}", kind, msg)
-    }
-}
-
 impl<E: OperationError> Into<Status> for EndpointError<E> {
     fn into(self) -> Status {
         Status::new(self.code(), self.to_string())
+    }
+}
+
+impl<E: OperationError> EndpointError<E> {
+    pub fn validation(msg: impl Into<String>) -> Self {
+        EndpointError::Validation(msg.into())
+    }
+
+    pub fn internal() -> Self {
+        EndpointError::Internal
+    }
+
+    pub fn operation(e: impl Into<E>) -> Self {
+        EndpointError::Operation(e.into())
     }
 }

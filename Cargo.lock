@@ -894,6 +894,7 @@ dependencies = [
  "service_core",
  "sha2",
  "simple_logger",
+ "thiserror",
  "tokio",
  "tonic",
  "tonic-build",
