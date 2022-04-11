@@ -54,7 +54,7 @@ impl IdentityService for IdentityServiceImpl {
     ) -> Result<Response<svc::ListAccountsOutput>, Status> {
         log::debug!("got ListAccounts request: {:?}.", &request);
 
-        list_accounts(&self.ctx, request.get_ref())
+        list_accounts(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())

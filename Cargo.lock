@@ -444,6 +444,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "common_macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3f6d59c71e7dc3af60f0af9db32364d96a16e9310f3f5db2b55ed642162dd35"
+
+[[package]]
 name = "const_fn"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -882,6 +888,7 @@ dependencies = [
  "aws-sdk-dynamodb",
  "base64",
  "bytes",
+ "common_macros",
  "http",
  "log",
  "prost",
