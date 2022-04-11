@@ -2,10 +2,13 @@ use crate::svc::CreateAccountInput;
 use crate::svc::CreateAccountOutput;
 use crate::user_account::UserAccount;
 use crate::Context;
-use rusoto_core::RusotoError;
-use rusoto_dynamodb::{PutItemError, PutItemInput};
+use aws_sdk_dynamodb::error::{PutItemError, PutItemErrorKind};
+use aws_sdk_dynamodb::types::SdkError;
+use service_core::ddb::put_item::PutItem;
+use service_core::ddb::put_item::PutItemInput;
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::Display;
 use uuid::Uuid;
@@ -18,6 +21,7 @@ pub enum CreateAccountError {
 
 pub(crate) async fn create_account(
     ctx: &Context,
+    ddb: &impl PutItem,
     input: &CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
     let account_attributes = input
@@ -42,18 +46,23 @@ pub(crate) async fn create_account(
         discoverable: account_attributes.discoverable,
     };
 
-    ctx.dynamodb_client
-        .put_item(PutItemInput {
-            item: serde_dynamodb::to_hashmap(&account).unwrap(),
-            table_name: ctx.accounts_table_name.clone(),
-            condition_expression: Some("attribute_not_exists(Email)".to_string()),
-            ..PutItemInput::default()
-        })
+    let put_item_input = PutItemInput::builder()
+        .table_name(ctx.accounts_table_name.clone())
+        .item(serde_ddb::to_hashmap(&account).unwrap())
+        .condition_expression("attribute_not_exists(Email)")
+        .build();
+
+    ddb.put_item(put_item_input)
         .await
         .map_err(|err| match err {
-            RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) => {
-                EndpointError::Operation(CreateAccountError::DuplicateAccountError)
-            }
+            SdkError::ServiceError {
+                err:
+                    PutItemError {
+                        kind: PutItemErrorKind::ConditionalCheckFailedException(_),
+                        ..
+                    },
+                ..
+            } => EndpointError::Operation(CreateAccountError::DuplicateAccountError),
             _ => {
                 log::error!("Failed creating item in DynamoDB: {:?}", err);
                 EndpointError::Internal

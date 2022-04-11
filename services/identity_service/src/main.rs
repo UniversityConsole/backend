@@ -32,7 +32,7 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<CreateAccountInput>,
     ) -> Result<Response<CreateAccountOutput>, Status> {
-        create_account(&self.ctx, request.get_ref())
+        create_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(|output| Response::new(output))
             .map_err(|err| err.into())
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     let addr = "0.0.0.0:8080".parse().unwrap();
-    let ctx = Context::from_env();
+    let ctx = Context::from_env().await;
     let identity_service = IdentityServiceImpl { ctx };
     let server = IdentityServiceServer::new(identity_service);
 
