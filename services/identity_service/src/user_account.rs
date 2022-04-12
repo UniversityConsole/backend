@@ -25,7 +25,7 @@ where
     let mut hasher = Sha512::new();
     hasher.update(&val);
     let hashed = hasher.finalize();
-    serializer.serialize_bytes(&hashed.as_slice())
+    serializer.serialize_bytes(hashed.as_slice())
 }
 
 #[cfg(test)]

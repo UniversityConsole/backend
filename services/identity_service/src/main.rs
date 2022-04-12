@@ -32,9 +32,9 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<CreateAccountInput>,
     ) -> Result<Response<CreateAccountOutput>, Status> {
-        create_account(&self.ctx, request.get_ref())
+        create_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
-            .map(|output| Response::new(output))
+            .map(Response::new)
             .map_err(|err| err.into())
     }
 
@@ -42,7 +42,7 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<DescribeAccountInput>,
     ) -> Result<Response<DescribeAccountOutput>, Status> {
-        describe_account(&self.ctx, request.get_ref())
+        describe_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
@@ -54,7 +54,7 @@ impl IdentityService for IdentityServiceImpl {
     ) -> Result<Response<svc::ListAccountsOutput>, Status> {
         log::debug!("got ListAccounts request: {:?}.", &request);
 
-        list_accounts(&self.ctx, request.get_ref())
+        list_accounts(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
@@ -64,13 +64,13 @@ impl IdentityService for IdentityServiceImpl {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SimpleLogger::new()
-        .with_level(LevelFilter::Debug)
+        .with_level(LevelFilter::Warn)
         .with_module_level(module_path!(), LevelFilter::Debug)
         .init()
         .unwrap();
 
     let addr = "0.0.0.0:8080".parse().unwrap();
-    let ctx = Context::from_env();
+    let ctx = Context::from_env().await;
     let identity_service = IdentityServiceImpl { ctx };
     let server = IdentityServiceServer::new(identity_service);
 

@@ -1,13 +1,15 @@
 use crate::user_account::UserAccount;
 use crate::Context;
+use aws_sdk_dynamodb::model::AttributeValue;
 use base64;
-use rusoto_dynamodb::{AttributeValue, ScanInput};
-use serde_dynamodb::from_hashmap;
+use common_macros::hash_map;
+use serde_ddb::from_hashmap;
+use service_core::ddb::scan::{Scan, ScanInput};
 use service_core::endpoint_error::EndpointError;
-use std::collections::HashMap;
 
 pub(crate) async fn list_accounts(
     ctx: &Context,
+    ddb: &impl Scan,
     input: &crate::svc::ListAccountsInput,
 ) -> Result<crate::svc::ListAccountsOutput, EndpointError<!>> {
     let page_size = if input.page_size > 0 {
@@ -27,19 +29,11 @@ pub(crate) async fn list_accounts(
     let projection_expression = projection_fields.join(",");
     let page_start = if let Some(v) = &input.starting_token {
         const PARSE_ERR_MSG: &str = "Could not parse StartingToken.";
-        let v =
-            base64::decode(&v).map_err(|_| EndpointError::Validation(PARSE_ERR_MSG.to_string()))?;
-        let v = String::from_utf8(v)
-            .map_err(|_| EndpointError::Validation(PARSE_ERR_MSG.to_string()))?;
-        let mut hm = HashMap::new();
-        hm.insert(
-            "Email".to_string(),
-            AttributeValue {
-                s: Some(v),
-                ..AttributeValue::default()
-            },
-        );
-        Some(hm)
+        let v = base64::decode(&v).map_err(|_| EndpointError::validation(PARSE_ERR_MSG))?;
+        let v = String::from_utf8(v).map_err(|_| EndpointError::validation(PARSE_ERR_MSG))?;
+        Some(hash_map! {
+            "Email".to_owned() => AttributeValue::S(v),
+        })
     } else {
         None
     };
@@ -51,61 +45,52 @@ pub(crate) async fn list_accounts(
         &page_size,
     );
 
-    let scan_output = ctx
-        .dynamodb_client
-        .scan(ScanInput {
-            limit: Some(page_size.into()),
-            projection_expression: Some(projection_expression),
-            table_name: ctx.accounts_table_name.clone(),
-            exclusive_start_key: page_start,
-            filter_expression: if input.include_non_discoverable == false {
-                Some("Discoverable = :true".to_string())
-            } else {
-                None
-            },
-            expression_attribute_values: if input.include_non_discoverable == false {
-                let mut hm = HashMap::new();
-                hm.insert(
-                    ":true".to_string(),
-                    AttributeValue {
-                        bool: Some(true),
-                        ..AttributeValue::default()
-                    },
-                );
-                Some(hm)
-            } else {
-                None
-            },
-            ..ScanInput::default()
+    let scan_input = ScanInput::builder()
+        .table_name(ctx.accounts_table_name.clone())
+        .limit(page_size as i32)
+        .projection_expression(projection_expression)
+        .exclusive_start_key(page_start)
+        .filter_expression(if !input.include_non_discoverable {
+            Some("Discoverable = :true".to_string())
+        } else {
+            None
         })
-        .await
-        .map_err(|e| {
-            log::error!("scan failed, error: {:?}", e);
-            EndpointError::Internal
-        })?;
+        .expression_attribute_values(if !input.include_non_discoverable {
+            Some(hash_map! {
+                ":true".to_owned() => AttributeValue::Bool(true),
+            })
+        } else {
+            None
+        })
+        .build();
+
+    log::debug!("scan input: {:?}", &scan_input);
+
+    let scan_output = ddb.scan(scan_input).await.map_err(|e| {
+        log::error!("scan failed, error: {:?}", e);
+        EndpointError::internal()
+    })?;
 
     let next_token = match scan_output.last_evaluated_key {
         None => None,
         Some(hm) => {
             let email_value = hm.get(&"Email".to_string()).unwrap();
-            Some(base64::encode(email_value.s.as_ref().unwrap()))
+            if let AttributeValue::S(email_value) = email_value {
+                Some(base64::encode(email_value))
+            } else {
+                unreachable!();
+            }
         }
     };
 
     let accounts = match scan_output.items {
         None => vec![],
         Some(items) => {
-            // TODO Allocate scan_output.items_count elements here.
-            let mut accounts = vec![];
+            let mut accounts = Vec::with_capacity(scan_output.count as usize);
             for item in items.into_iter() {
-                let item_json = serde_json::json!(&item);
                 let account: UserAccount = from_hashmap(item).map_err(|err| {
-                    log::error!(
-                        "Invalid record in DynamoDB: {}. Original item: {}",
-                        err,
-                        item_json
-                    );
-                    EndpointError::Internal
+                    log::error!("Invalid record in DynamoDB: {:?}.", err);
+                    EndpointError::internal()
                 })?;
                 accounts.push(account);
             }

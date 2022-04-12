@@ -5,4 +5,5 @@ members = [
         "service_client_runtime",
         "services/core",
         "services/identity_service",
+        "serde_ddb",
 ]

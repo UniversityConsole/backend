@@ -2,35 +2,33 @@ use crate::svc::CreateAccountInput;
 use crate::svc::CreateAccountOutput;
 use crate::user_account::UserAccount;
 use crate::Context;
-use rusoto_core::RusotoError;
-use rusoto_dynamodb::{PutItemError, PutItemInput};
+use aws_sdk_dynamodb::error::{PutItemError, PutItemErrorKind};
+use aws_sdk_dynamodb::types::SdkError;
+use service_core::ddb::put_item::PutItem;
+use service_core::ddb::put_item::PutItemInput;
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
-use std::error::Error;
-use std::fmt::Display;
 use uuid::Uuid;
 
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CreateAccountError {
+    #[error("An account with this email already exists.")]
     DuplicateAccountError,
 }
 
 pub(crate) async fn create_account(
     ctx: &Context,
+    ddb: &impl PutItem,
     input: &CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
     let account_attributes = input
         .account_attributes
         .as_ref()
-        .ok_or(EndpointError::Validation(
-            "Account attributes missing.".to_string(),
-        ))?;
+        .ok_or_else(|| EndpointError::validation("Account attributes missing."))?;
 
     if account_attributes.password.is_empty() {
-        return Err(EndpointError::Validation(String::from(
-            "Password is required.",
-        )));
+        return Err(EndpointError::validation("Password is required."));
     }
 
     let account = UserAccount {
@@ -42,18 +40,23 @@ pub(crate) async fn create_account(
         discoverable: account_attributes.discoverable,
     };
 
-    ctx.dynamodb_client
-        .put_item(PutItemInput {
-            item: serde_dynamodb::to_hashmap(&account).unwrap(),
-            table_name: ctx.accounts_table_name.clone(),
-            condition_expression: Some("attribute_not_exists(Email)".to_string()),
-            ..PutItemInput::default()
-        })
+    let put_item_input = PutItemInput::builder()
+        .table_name(ctx.accounts_table_name.clone())
+        .item(serde_ddb::to_hashmap(&account).unwrap())
+        .condition_expression("attribute_not_exists(Email)")
+        .build();
+
+    ddb.put_item(put_item_input)
         .await
         .map_err(|err| match err {
-            RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) => {
-                EndpointError::Operation(CreateAccountError::DuplicateAccountError)
-            }
+            SdkError::ServiceError {
+                err:
+                    PutItemError {
+                        kind: PutItemErrorKind::ConditionalCheckFailedException(_),
+                        ..
+                    },
+                ..
+            } => EndpointError::Operation(CreateAccountError::DuplicateAccountError),
             _ => {
                 log::error!("Failed creating item in DynamoDB: {:?}", err);
                 EndpointError::Internal
@@ -64,18 +67,6 @@ pub(crate) async fn create_account(
         account_id: account.account_id.to_string(),
     })
 }
-
-impl Display for CreateAccountError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CreateAccountError::DuplicateAccountError => {
-                write!(f, "An account with this email address already exists.")
-            }
-        }
-    }
-}
-
-impl Error for CreateAccountError {}
 
 impl OperationError for CreateAccountError {
     fn code(&self) -> tonic::Code {

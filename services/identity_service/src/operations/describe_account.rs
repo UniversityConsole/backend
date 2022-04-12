@@ -2,13 +2,14 @@ use crate::svc::DescribeAccountInput;
 use crate::svc::DescribeAccountOutput;
 use crate::user_account::UserAccount;
 use crate::Context;
-use rusoto_dynamodb::{AttributeValue, GetItemInput, QueryInput};
+use aws_sdk_dynamodb::model::AttributeValue;
+use aws_sdk_dynamodb::model::Select;
+use common_macros::hash_map;
 use serde::{Deserialize, Serialize};
+use service_core::ddb::get_item::{GetItem, GetItemInput};
+use service_core::ddb::query::{Query, QueryInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::Display;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
@@ -20,50 +21,44 @@ struct AccountIdIndexProjection {
 }
 
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum DescribeAccountError {
+    #[error("Account not found.")]
     NotFoundError,
 }
 
 pub(crate) async fn describe_account(
     ctx: &Context,
+    ddb: &(impl GetItem + Query),
     input: &DescribeAccountInput,
 ) -> Result<DescribeAccountOutput, EndpointError<DescribeAccountError>> {
     let account_id = Uuid::parse_str(input.account_id.clone().as_mut())
-        .map_err(|_| EndpointError::Validation("Invalid account ID provided.".to_string()))?;
-    let mut query_params = HashMap::new();
-    query_params.insert(
-        ":uuid".to_string(),
-        AttributeValue {
-            s: Some(account_id.to_hyphenated().to_string()),
-            ..AttributeValue::default()
-        },
-    );
+        .map_err(|_| EndpointError::validation("Invalid account ID provided."))?;
+    let query_params = hash_map! {
+        ":uuid".to_string() => AttributeValue::S(account_id.to_hyphenated().to_string()),
+    };
 
-    let output = ctx
-        .dynamodb_client
-        .query(QueryInput {
-            index_name: Some("AccountIdIndex".to_string()),
-            table_name: ctx.accounts_table_name.clone(),
-            key_condition_expression: Some("AccountId = :uuid".to_string()),
-            select: Some("ALL_PROJECTED_ATTRIBUTES".to_string()),
-            expression_attribute_values: Some(query_params),
-            ..QueryInput::default()
-        })
-        .await
-        .map_err(|e| {
-            log::error!("Failed to query DynamoDB. Original error: {:?}.", e);
-            EndpointError::Internal
-        })?;
+    let query_input = QueryInput::builder()
+        .index_name("AccountIdIndex")
+        .table_name(ctx.accounts_table_name.clone())
+        .key_condition_expression("AccountId = :uuid")
+        .select(Select::AllProjectedAttributes)
+        .expression_attribute_values(Some(query_params))
+        .limit(1)
+        .build();
+    let output = ddb.query(query_input).await.map_err(|e| {
+        log::error!("Failed to query DynamoDB. Original error: {:?}.", e);
+        EndpointError::internal()
+    })?;
 
-    if output.count.unwrap() == 0 {
-        return Err(EndpointError::Operation(
+    if output.count == 0 {
+        return Err(EndpointError::operation(
             DescribeAccountError::NotFoundError,
         ));
     }
 
     let items = output.items.unwrap();
-    let item: AccountIdIndexProjection = serde_dynamodb::from_hashmap(items[0].clone()).unwrap();
+    let item: AccountIdIndexProjection = serde_ddb::from_hashmap(items[0].clone()).unwrap();
     let projection_expression = [
         "AccountId",
         "Email",
@@ -72,30 +67,19 @@ pub(crate) async fn describe_account(
         "Discoverable",
     ]
     .join(",");
-    let mut key = HashMap::new();
-    key.insert(
-        "Email".to_string(),
-        AttributeValue {
-            s: Some(item.email),
-            ..AttributeValue::default()
-        },
-    );
-    let output = ctx
-        .dynamodb_client
-        .get_item(GetItemInput {
-            table_name: ctx.accounts_table_name.clone(),
-            projection_expression: Some(projection_expression),
-            key,
-            ..GetItemInput::default()
-        })
-        .await
-        .map_err(|e| {
-            log::error!(
-                "Failed to retrieve item from DynamoDB. Original error: {:?}.",
-                e
-            );
-            EndpointError::Internal
-        })?;
+    let key = hash_map! {
+        "Email".to_string() => AttributeValue::S(item.email),
+    };
+
+    let get_item_input = GetItemInput::builder()
+        .table_name(ctx.accounts_table_name.clone())
+        .projection_expression(projection_expression)
+        .key(key)
+        .build();
+    let output = ddb.get_item(get_item_input).await.map_err(|e| {
+        log::error!("Failed to get item from DynamoDB. Original error: {:?}.", e);
+        EndpointError::internal()
+    })?;
 
     match output.item {
         None => {
@@ -103,14 +87,14 @@ pub(crate) async fn describe_account(
                 "Item found on Query, but not found on GetItem. Queried AccountId: {}",
                 account_id.to_hyphenated().to_string()
             );
-            Err(EndpointError::Operation(
+            Err(EndpointError::operation(
                 DescribeAccountError::NotFoundError,
             ))
         }
         Some(item) => {
-            let user_account: UserAccount = serde_dynamodb::from_hashmap(item).map_err(|e| {
+            let user_account: UserAccount = serde_ddb::from_hashmap(item).map_err(|e| {
                 log::error!("Invalid record in DynamoDB. Original error: {:?}.", e);
-                EndpointError::Internal
+                EndpointError::internal()
             })?;
             Ok(DescribeAccountOutput {
                 account: Some(crate::svc::Account {
@@ -132,13 +116,3 @@ impl OperationError for DescribeAccountError {
         }
     }
 }
-
-impl Display for DescribeAccountError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NotFoundError => write!(f, "Account not found."),
-        }
-    }
-}
-
-impl Error for DescribeAccountError {}
