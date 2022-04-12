@@ -50,12 +50,12 @@ pub(crate) async fn list_accounts(
         .limit(page_size as i32)
         .projection_expression(projection_expression)
         .exclusive_start_key(page_start)
-        .filter_expression(if input.include_non_discoverable == false {
+        .filter_expression(if !input.include_non_discoverable {
             Some("Discoverable = :true".to_string())
         } else {
             None
         })
-        .expression_attribute_values(if input.include_non_discoverable == false {
+        .expression_attribute_values(if !input.include_non_discoverable {
             Some(hash_map! {
                 ":true".to_owned() => AttributeValue::Bool(true),
             })
@@ -63,6 +63,8 @@ pub(crate) async fn list_accounts(
             None
         })
         .build();
+
+    log::debug!("scan input: {:?}", &scan_input);
 
     let scan_output = ddb.scan(scan_input).await.map_err(|e| {
         log::error!("scan failed, error: {:?}", e);
