@@ -1248,7 +1248,10 @@ dependencies = [
  "async-graphql",
  "async-graphql-actix-web",
  "async-trait",
+ "prost",
  "tokio",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]

@@ -1,42 +1,15 @@
+mod integration;
+
+use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
+use crate::integration::identity_service::client::ListAccountsInput;
+use crate::integration::identity_service::schema::UserAccount;
 use actix_web::guard;
 use actix_web::web;
 use actix_web::App;
 use actix_web::{HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Enum, Object, Schema};
+use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema, ID};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
-pub enum State {
-    Active,
-    Inactive,
-}
-
-#[derive(Clone)]
-pub struct StorageObject {
-    pub path: String,
-    pub state: State,
-}
-
-impl StorageObject {
-    fn new(path: impl Into<String>, state: State) -> Self {
-        StorageObject {
-            path: path.into(),
-            state,
-        }
-    }
-}
-
-#[Object]
-impl StorageObject {
-    async fn path(&self) -> &String {
-        &self.path
-    }
-
-    async fn state(&self) -> &State {
-        &self.state
-    }
-}
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -89,16 +62,7 @@ async fn index_playground() -> HttpResponse {
 }
 
 pub fn create_schema_with_context() -> Schema<Query, EmptyMutation, EmptySubscription> {
-    let objects = vec![
-        StorageObject::new("/", State::Active),
-        StorageObject::new("/home", State::Active),
-        StorageObject::new("/home/vicbarbu", State::Active),
-        StorageObject::new("/home/out", State::Inactive),
-    ];
-
-    Schema::build(Query, EmptyMutation, EmptySubscription)
-        .data(objects)
-        .finish()
+    Schema::build(Query, EmptyMutation, EmptySubscription).finish()
 }
 
 pub type AppSchema = Schema<Query, EmptyMutation, EmptySubscription>;
@@ -106,13 +70,30 @@ pub struct Query;
 
 #[Object]
 impl Query {
-    async fn objects(&self, ctx: &Context<'_>) -> Vec<StorageObject> {
-        ctx.data::<Vec<StorageObject>>()
-            .expect("Can't get objects.")
-            .to_vec()
-    }
+    async fn accounts(&self, ctx: &Context<'_>) -> Vec<UserAccount> {
+        let mut identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
+            .await
+            .unwrap();
+        let request = tonic::Request::new(ListAccountsInput {
+            include_non_discoverable: true,
+            starting_token: None,
+            page_size: 32,
+        });
+        let output = identity_service_client
+            .list_accounts(request)
+            .await
+            .expect("list_accounts failed")
+            .into_inner();
 
-    async fn version(&self, ctx: &Context<'_>) -> u32 {
-        1
+        output
+            .accounts
+            .into_iter()
+            .map(|account| UserAccount {
+                account_id: account.account_id.into(),
+                email: account.email,
+                first_name: account.first_name,
+                last_name: account.last_name,
+            })
+            .collect()
     }
 }
