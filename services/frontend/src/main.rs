@@ -1,3 +1,4 @@
+mod authorization;
 mod integration;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
@@ -48,8 +49,9 @@ async fn index_ws(
     req: HttpRequest,
     payload: web::Payload,
 ) -> Result<HttpResponse> {
-    let ws_subscription =
-        async_graphql_actix_web::GraphQLSubscription::new(Schema::clone(&*schema));
+    use async_graphql_actix_web::GraphQLSubscription;
+
+    let ws_subscription = GraphQLSubscription::new(Schema::clone(&*schema));
     ws_subscription.start(&req, payload)
 }
 
@@ -62,7 +64,9 @@ async fn index_playground() -> HttpResponse {
 }
 
 pub fn create_schema_with_context() -> Schema<Query, EmptyMutation, EmptySubscription> {
-    Schema::build(Query, EmptyMutation, EmptySubscription).finish()
+    Schema::build(Query, EmptyMutation, EmptySubscription)
+        .extension(authorization::Authorizer)
+        .finish()
 }
 
 pub type AppSchema = Schema<Query, EmptyMutation, EmptySubscription>;
@@ -70,10 +74,13 @@ pub struct Query;
 
 #[Object]
 impl Query {
-    async fn accounts(&self, ctx: &Context<'_>) -> Vec<UserAccount> {
+    async fn accounts(
+        &self,
+        _ctx: &Context<'_>,
+    ) -> std::result::Result<Vec<UserAccount>, ListAccountsError> {
         let mut identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
             .await
-            .unwrap();
+            .map_err(|_| ListAccountsError::CannotAcquireClient)?;
         let request = tonic::Request::new(ListAccountsInput {
             include_non_discoverable: true,
             starting_token: None,
@@ -82,10 +89,10 @@ impl Query {
         let output = identity_service_client
             .list_accounts(request)
             .await
-            .expect("list_accounts failed")
+            .map_err(|_| ListAccountsError::Operation)?
             .into_inner();
 
-        output
+        Ok(output
             .accounts
             .into_iter()
             .map(|account| UserAccount {
@@ -94,6 +101,19 @@ impl Query {
                 first_name: account.first_name,
                 last_name: account.last_name,
             })
-            .collect()
+            .collect())
     }
+
+    async fn api_version(&self, _ctx: &Context<'_>) -> u32 {
+        1
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+enum ListAccountsError {
+    #[error("Cannot acquire IdentityService client.")]
+    CannotAcquireClient,
+
+    #[error("Operation error.")]
+    Operation,
 }

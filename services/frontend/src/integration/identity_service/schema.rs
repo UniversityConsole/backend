@@ -1,4 +1,5 @@
 use async_graphql::{Object, ID};
+use thiserror::Error;
 
 #[derive(Clone)]
 pub struct UserAccount {
