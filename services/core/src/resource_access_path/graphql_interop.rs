@@ -79,27 +79,22 @@ impl CompileError {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn single_query() {
-//         use async_graphql_parser::parse_query;
+    #[test]
+    fn single_query() {
+        use async_graphql_parser::parse_query;
 
-//         let document = parse_query("{ foo { bar baz } apiVersion }").expect("parse failed");
-//         let access_requests = from_document(&document).expect("failed compiling access requests");
-//         assert_eq!(access_requests.len(), 1);
+        let document = parse_query("{ foo { bar baz } apiVersion }").expect("parse failed");
+        let access_requests = from_document(&document).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
 
-//         let request = access_requests.first().unwrap();
-//         assert_eq!(request.kind, AccessKind::Query);
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Query);
 
-//         let expected_paths = ["apiVersion", "foo::{bar, baz}"];
-//         let mut actual_paths = request.paths.clone();
-//         actual_paths.sort_by_key(|p| p.to_string());
-
-//         assert_eq!(actual_paths.len(), expected_paths.len());
-//         assert_eq!(actual_paths[0].to_string(), expected_paths[0].to_string());
-//         assert_eq!(actual_paths[1].to_string(), expected_paths[1].to_string());
-//     }
-// }
+        let expected_path_set = "::{apiVersion, foo::{bar, baz}}";
+        assert_eq!(request.path_set.to_string(), expected_path_set.to_string());
+    }
+}
