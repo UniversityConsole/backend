@@ -1,13 +1,13 @@
 use async_graphql_parser::types::OperationType;
 use std::cmp::PartialEq;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
 #[derive(Debug)]
 pub struct AccessRequest {
     pub kind: AccessKind,
-    pub paths: Vec<ResourceAccessPath>,
+    pub path_set: PathSet,
 }
 
 #[derive(Debug, PartialEq)]
@@ -16,130 +16,141 @@ pub enum AccessKind {
     Mutation,
 }
 
-#[derive(Debug, Clone)]
-pub struct ResourceAccessPath {
-    pub segment_name: String,
-    pub args: Option<Vec<FieldArgument>>,
-    pub children: BTreeMap<String, ResourceAccessPath>,
+#[derive(Debug, Clone, Default)]
+pub struct PathSet {
+    root: PathNode,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum FieldArgument {
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PathNode {
+    pub fields: Fields,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Fields {
+    Explicit(HashMap<Segment, PathNode>),
+    Any,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Segment {
+    pub name: String,
+    pub args: Option<BTreeMap<String, Argument>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Argument {
+    pub name: String,
+    pub value: ArgumentValue,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub enum ArgumentValue {
     Unsupported(String),
 }
 
-impl ResourceAccessPath {
-    pub fn new(
-        segment_name: impl Into<String>,
-        args: Option<Vec<FieldArgument>>,
-        children: impl IntoIterator<Item = ResourceAccessPath>,
-    ) -> Self {
-        ResourceAccessPath {
-            segment_name: segment_name.into(),
-            args,
-            children: children
-                .into_iter()
-                .map(|p| (p.segment_name.clone(), p))
-                .collect(),
-        }
-    }
-
-    #[cfg(test)]
-    fn no_args(
-        segment_name: impl Into<String>,
-        children: impl IntoIterator<Item = ResourceAccessPath>,
-    ) -> Self {
-        ResourceAccessPath {
-            segment_name: segment_name.into(),
-            args: None,
-            children: children
-                .into_iter()
-                .map(|p| (p.segment_name.clone(), p))
-                .collect(),
-        }
-    }
+#[derive(thiserror::Error, Debug)]
+pub enum AppendNodeError {
+    #[error("Node already has a wildcard match on subfields. Cannot append to that.")]
+    CannotAppendToAny,
 }
 
-impl PartialEq for ResourceAccessPath {
-    fn eq(&self, other: &Self) -> bool {
-        // Terribly inefficient solution until I figure out what we need exactly.
+impl PathSet {
+    pub fn root(&self) -> &PathNode {
+        &self.root
+    }
 
-        if self.segment_name != other.segment_name || self.args != other.args {
-            return false;
-        }
+    pub fn root_mut(&mut self) -> &mut PathNode {
+        &mut self.root
+    }
 
-        if self.children.len() != other.children.len() {
-            return false;
-        }
+    pub fn extend(&mut self, path: impl IntoIterator<Item = Segment>) {
+        let mut parent = &mut self.root;
 
-        std::iter::zip(self.children.values(), other.children.values())
-            .map_while(|p| {
-                let (a, b) = &p;
-                if a == b {
-                    Some(())
-                } else {
-                    None
+        for segment in path.into_iter() {
+            match &mut parent.fields {
+                Fields::Explicit(fields) => {
+                    parent = fields
+                        .try_insert(segment, PathNode::default())
+                        .map_or_else(|e| e.entry.into_mut(), |v| v);
                 }
-            })
-            .count()
-            == self.children.len()
-    }
-}
-
-impl Display for ResourceAccessPath {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", &self.segment_name)?;
-
-        if let Some(args) = &self.args {
-            write!(f, "(")?;
-
-            let mut it = args.iter().peekable();
-            while let Some(arg) = it.next() {
-                write!(f, "{}{}", &arg, if it.peek().is_some() { ", " } else { "" })?;
+                Fields::Any => break,
             }
-
-            write!(f, ")")?;
         }
-
-        if !self.children.is_empty() {
-            write!(f, "::")?;
-        }
-
-        if self.children.len() > 1 {
-            write!(f, "{{")?;
-        }
-
-        let mut it = self.children.values().peekable();
-        while let Some(child) = it.next() {
-            write!(
-                f,
-                "{}{}",
-                &child,
-                if it.peek().is_some() { ", " } else { "" }
-            )?;
-        }
-
-        if self.children.len() > 1 {
-            write!(f, "}}")?;
-        }
-
-        Ok(())
     }
 }
 
-impl Display for FieldArgument {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "UNSUPPORTED")?;
+impl PathNode {
+    pub fn explicit_match() -> Self {
+        PathNode {
+            fields: Fields::Explicit(HashMap::default()),
+        }
+    }
 
-        Ok(())
+    pub fn any_match() -> Self {
+        PathNode {
+            fields: Fields::Any,
+        }
+    }
+
+    pub fn append(&mut self, segment: Segment) -> Result<&mut Self, AppendNodeError> {
+        match &mut self.fields {
+            Fields::Any => Err(AppendNodeError::CannotAppendToAny),
+            Fields::Explicit(fields) => Ok(fields
+                .try_insert(segment, PathNode::default())
+                .map_or_else(|e| e.entry.into_mut(), |v| v)),
+        }
+    }
+}
+
+impl Segment {
+    pub fn no_args(name: impl Into<String>) -> Self {
+        Segment {
+            name: name.into(),
+            args: None,
+        }
+    }
+
+    pub fn with_args(name: impl Into<String>, args: impl IntoIterator<Item = Argument>) -> Self {
+        Segment {
+            name: name.into(),
+            args: Some(
+                args.into_iter()
+                    .map(|arg| (arg.name.clone(), arg))
+                    .collect(),
+            ),
+        }
+    }
+}
+
+impl Default for Fields {
+    fn default() -> Self {
+        Fields::Explicit(HashMap::default())
+    }
+}
+impl Fields {
+    pub fn is_any(&self) -> bool {
+        matches!(self, Fields::Any)
+    }
+
+    pub fn is_explicit(&self) -> bool {
+        self.as_explicit().is_some()
+    }
+
+    pub fn as_explicit(&self) -> Option<&HashMap<Segment, PathNode>> {
+        if let Fields::Explicit(fields) = self {
+            Some(fields)
+        } else {
+            None
+        }
     }
 }
 
 impl TryFrom<OperationType> for AccessKind {
     type Error = ();
 
-    fn try_from(value: OperationType) -> Result<Self, Self::Error> {
-        match value {
+    fn try_from(operation_type: OperationType) -> Result<Self, Self::Error> {
+        match operation_type {
             OperationType::Query => Ok(AccessKind::Query),
             OperationType::Mutation => Ok(AccessKind::Mutation),
             _ => Err(()),
@@ -147,143 +158,215 @@ impl TryFrom<OperationType> for AccessKind {
     }
 }
 
-#[cfg(test)]
-mod equality_tests {
-    use super::*;
-
-    #[test]
-    fn single_segment_equal_paths() {
-        let a = ResourceAccessPath::no_args("foo", vec![]);
-        let b = ResourceAccessPath::no_args("foo", vec![]);
-
-        assert!(a == b);
+impl Display for PathSet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{}", self.root())?;
+        Ok(())
     }
+}
 
-    #[test]
-    fn single_segment_not_equal_paths() {
-        let a = ResourceAccessPath::no_args("foo", vec![]);
-        let b = ResourceAccessPath::no_args("bar", vec![]);
-        let c = ResourceAccessPath::new(
-            "foo",
-            Some(vec![FieldArgument::Unsupported("foo".to_owned())]),
-            vec![],
-        );
-
-        assert_ne!(a, b);
-        assert_ne!(a, c);
+impl Display for PathNode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let need_sep = match &self.fields {
+            Fields::Any => true,
+            Fields::Explicit(sub_fields) => !sub_fields.is_empty(),
+        };
+        write!(f, "{}{}", if need_sep { "::" } else { "" }, &self.fields)?;
+        Ok(())
     }
+}
 
-    #[test]
-    fn one_single_segment_one_more() {
-        let a = ResourceAccessPath::no_args("a", vec![]);
-        let b = ResourceAccessPath::no_args("a", vec![ResourceAccessPath::no_args("bar", vec![])]);
+impl Display for Fields {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Fields::Any => write!(f, "*")?,
+            Fields::Explicit(sub_fields) => {
+                let mut joined_sub_fields = String::default();
+                let mut it = sub_fields.iter().peekable();
+                while let Some((segment, sub_field)) = it.next() {
+                    joined_sub_fields.push_str(&format!(
+                        "{segment}{sub_field}{}",
+                        if it.peek().is_some() { ", " } else { "" }
+                    ));
+                }
 
-        assert_ne!(a, b);
+                write!(
+                    f,
+                    "{}{}{}",
+                    if sub_fields.len() > 1 { "{" } else { "" },
+                    joined_sub_fields,
+                    if sub_fields.len() > 1 { "}" } else { "" }
+                )?;
+            }
+        }
+        Ok(())
     }
+}
 
-    #[test]
-    fn deep_equal_paths() {
-        // a::{b::d, c}
-        let a = ResourceAccessPath::no_args(
-            "a",
-            vec![
-                ResourceAccessPath::no_args("b", vec![ResourceAccessPath::no_args("d", vec![])]),
-                ResourceAccessPath::no_args("c", vec![]),
-            ],
-        );
-        let b = ResourceAccessPath::no_args(
-            "a",
-            vec![
-                ResourceAccessPath::no_args("c", vec![]),
-                ResourceAccessPath::no_args("b", vec![ResourceAccessPath::no_args("d", vec![])]),
-            ],
-        );
+impl Display for Segment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{}", self.name)?;
 
-        assert_eq!(a, b);
+        if let Some(args) = &self.args {
+            let mut joined_args = String::default();
+            let mut it = args.values().peekable();
+            while let Some(arg) = it.next() {
+                joined_args.push_str(&format!(
+                    "{arg}{}",
+                    if it.peek().is_some() { ", " } else { "" }
+                ));
+            }
+            write!(f, "({})", joined_args)?;
+        }
+        Ok(())
     }
+}
 
-    #[test]
-    fn deep_not_equal_paths() {
-        // a::{b::d, c} vs. a::{e::d, c}
-        let a = ResourceAccessPath::no_args(
-            "a",
-            vec![
-                ResourceAccessPath::no_args("b", vec![ResourceAccessPath::no_args("d", vec![])]),
-                ResourceAccessPath::no_args("c", vec![]),
-            ],
-        );
-        let b = ResourceAccessPath::no_args(
-            "a",
-            vec![
-                ResourceAccessPath::no_args("c", vec![]),
-                ResourceAccessPath::no_args("e", vec![ResourceAccessPath::no_args("d", vec![])]),
-            ],
-        );
+impl Display for Argument {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{}: unsupported", self.name)?;
 
-        assert_ne!(a, b);
+        Ok(())
     }
 }
 
 #[cfg(test)]
-mod display_test {
+mod path_tests {
     use super::*;
-    use std::string::ToString;
 
     #[test]
-    fn single_segment() {
-        let p = ResourceAccessPath::new("foo", None, vec![]);
-        let s = "foo".to_owned();
+    fn extend() {
+        let mut path = PathSet::default();
+        path.extend([Segment::no_args("accounts"), Segment::no_args("id")]);
 
-        assert_eq!(s, p.to_string());
+        assert_eq!(path.root().fields.as_explicit().unwrap().len(), 1);
+
+        let accounts_segment = path
+            .root()
+            .fields
+            .as_explicit()
+            .unwrap()
+            .get(&Segment::no_args("accounts"))
+            .expect("no accounts field");
+
+        assert_eq!(accounts_segment.fields.as_explicit().unwrap().len(), 1);
+
+        accounts_segment
+            .fields
+            .as_explicit()
+            .unwrap()
+            .get(&Segment::no_args("id"))
+            .expect("no id field");
     }
 
     #[test]
-    fn linear() {
-        let p = ResourceAccessPath::new(
-            "a",
-            None,
-            vec![ResourceAccessPath::new(
-                "b",
-                None,
-                vec![ResourceAccessPath::new("c", None, vec![])],
-            )],
-        );
-        let s = "a::b::c".to_owned();
+    fn two_extends() {
+        let mut path = PathSet::default();
+        path.extend([Segment::no_args("accounts"), Segment::no_args("id")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("firstName")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("lastName")]);
 
-        assert_eq!(s, p.to_string());
+        assert_eq!(path.root().fields.as_explicit().unwrap().len(), 1);
+
+        let accounts_segment = path
+            .root()
+            .fields
+            .as_explicit()
+            .unwrap()
+            .get(&Segment::no_args("accounts"))
+            .expect("no accounts field");
+
+        assert_eq!(accounts_segment.fields.as_explicit().unwrap().len(), 3);
+
+        for field in ["id", "firstName", "lastName"] {
+            let node = accounts_segment
+                .fields
+                .as_explicit()
+                .unwrap()
+                .get(&Segment::no_args(field))
+                .expect(format!("no {field} field").as_str());
+
+            assert!(node.fields.as_explicit().unwrap().is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod node_tests {
+    use super::*;
+
+    #[test]
+    fn insert_new_segment() {
+        let mut node = PathNode::default();
+
+        assert!(node.fields.as_explicit().unwrap().is_empty());
+
+        let child = node
+            .append(Segment::no_args("foo"))
+            .expect("node.append failed");
+
+        assert!(child.fields.as_explicit().unwrap().is_empty());
+        assert_eq!(node.fields.as_explicit().unwrap().len(), 1);
+        assert!(node
+            .fields
+            .as_explicit()
+            .unwrap()
+            .get(&Segment::no_args("foo"))
+            .is_some());
     }
 
     #[test]
-    fn tree_like() {
-        let p = ResourceAccessPath::new(
-            "a",
-            None,
-            vec![
-                ResourceAccessPath::new("z", None, vec![]),
-                ResourceAccessPath::new(
-                    "c",
-                    None,
-                    vec![
-                        ResourceAccessPath::new("d", None, vec![]),
-                        ResourceAccessPath::new("e", None, vec![]),
-                    ],
-                ),
-            ],
-        );
-        let s = "a::{c::{d, e}, z}".to_owned();
+    fn insert_existing() {
+        let mut root = PathNode::default();
+        let foo = root.append(Segment::no_args("foo")).expect("append failed");
+        foo.append(Segment::no_args("bar")).expect("append failed");
 
-        assert_eq!(s, p.to_string());
+        let second_foo = root.append(Segment::no_args("foo")).expect("append failed");
+
+        assert_eq!(second_foo.fields.as_explicit().unwrap().len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod string_tests {
+    use super::*;
+
+    #[test]
+    fn single_root() {
+        let mut path = PathSet::default();
+        path.extend([Segment::no_args("accounts"), Segment::no_args("id")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("firstName")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("lastName")]);
+
+        println!("{path}");
     }
 
     #[test]
-    fn empty_args() {
-        let p = ResourceAccessPath::new(
-            "foo",
-            Some(vec![]),
-            vec![ResourceAccessPath::new("bar", None, vec![])],
+    fn single_root_and_args() {
+        let mut path = PathSet::default();
+        let account_seg = Segment::with_args(
+            "account",
+            vec![Argument {
+                name: "id".to_owned(),
+                value: ArgumentValue::Unsupported("foo".to_owned()),
+            }],
         );
-        let s = "foo()::bar".to_owned();
+        path.extend([account_seg.clone(), Segment::no_args("id")]);
+        path.extend([account_seg.clone(), Segment::no_args("firstName")]);
+        path.extend([account_seg.clone(), Segment::no_args("lastName")]);
 
-        assert_eq!(s, p.to_string());
+        println!("{path}");
+    }
+
+    #[test]
+    fn multi_root() {
+        let mut path = PathSet::default();
+        path.extend([Segment::no_args("accounts"), Segment::no_args("id")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("firstName")]);
+        path.extend([Segment::no_args("accounts"), Segment::no_args("lastName")]);
+        path.extend([Segment::no_args("courses"), Segment::no_args("id")]);
+        path.extend([Segment::no_args("courses"), Segment::no_args("title")]);
+
+        println!("{path}");
     }
 }
