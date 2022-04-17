@@ -1,6 +1,6 @@
 use async_graphql_parser::types::OperationType;
 use std::cmp::PartialEq;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -28,23 +28,23 @@ pub struct PathNode {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Fields {
-    Explicit(HashMap<Segment, PathNode>),
+    Explicit(BTreeMap<Segment, PathNode>),
     Any,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Segment {
     pub name: String,
     pub args: Option<BTreeMap<String, Argument>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Clone)]
 pub struct Argument {
     pub name: String,
     pub value: ArgumentValue,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Clone, Hash)]
 pub enum ArgumentValue {
     Unsupported(String),
 }
@@ -83,7 +83,7 @@ impl PathSet {
 impl PathNode {
     pub fn explicit_match() -> Self {
         PathNode {
-            fields: Fields::Explicit(HashMap::default()),
+            fields: Fields::Explicit(BTreeMap::default()),
         }
     }
 
@@ -125,7 +125,7 @@ impl Segment {
 
 impl Default for Fields {
     fn default() -> Self {
-        Fields::Explicit(HashMap::default())
+        Fields::Explicit(BTreeMap::default())
     }
 }
 impl Fields {
@@ -137,7 +137,7 @@ impl Fields {
         self.as_explicit().is_some()
     }
 
-    pub fn as_explicit(&self) -> Option<&HashMap<Segment, PathNode>> {
+    pub fn as_explicit(&self) -> Option<&BTreeMap<Segment, PathNode>> {
         if let Fields::Explicit(fields) = self {
             Some(fields)
         } else {
@@ -338,7 +338,8 @@ mod string_tests {
         path.extend([Segment::no_args("accounts"), Segment::no_args("firstName")]);
         path.extend([Segment::no_args("accounts"), Segment::no_args("lastName")]);
 
-        println!("{path}");
+        let expected_fmt = "::accounts::{firstName, id, lastName}".to_owned();
+        assert_eq!(path.to_string(), expected_fmt);
     }
 
     #[test]
@@ -355,7 +356,8 @@ mod string_tests {
         path.extend([account_seg.clone(), Segment::no_args("firstName")]);
         path.extend([account_seg.clone(), Segment::no_args("lastName")]);
 
-        println!("{path}");
+        let expected_fmt = "::account(id: unsupported)::{firstName, id, lastName}".to_owned();
+        assert_eq!(path.to_string(), expected_fmt);
     }
 
     #[test]
@@ -367,6 +369,8 @@ mod string_tests {
         path.extend([Segment::no_args("courses"), Segment::no_args("id")]);
         path.extend([Segment::no_args("courses"), Segment::no_args("title")]);
 
-        println!("{path}");
+        let expected_fmt =
+            "::{accounts::{firstName, id, lastName}, courses::{id, title}}".to_owned();
+        assert_eq!(path.to_string(), expected_fmt);
     }
 }
