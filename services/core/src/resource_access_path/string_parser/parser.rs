@@ -1,7 +1,6 @@
 use super::string_literal;
 use super::types::{
-    Expression, Field, FieldArg, FieldArgValue, MultiSelectionSet, SelectionSet,
-    SingularSelectionSet,
+    Expression, Field, FieldArg, FieldArgValue, SelectionSet, SingularSelectionSet,
 };
 use nom::branch::alt;
 use nom::bytes::complete::tag;
@@ -93,14 +92,11 @@ pub fn singular_selection_set<'a>(input: &'a str) -> IResult<&'a str, SingularSe
     )(input)
 }
 
-pub fn multi_selection_set<'a>(input: &'a str) -> IResult<&'a str, MultiSelectionSet<'a>> {
+pub fn multi_selection_set<'a>(input: &'a str) -> IResult<&'a str, Vec<SingularSelectionSet<'a>>> {
     preceded(
         char('{'),
         cut(terminated(
-            map(
-                separated_list0(preceded(multispace0, char(',')), singular_selection_set),
-                MultiSelectionSet,
-            ),
+            separated_list0(preceded(multispace0, char(',')), singular_selection_set),
             preceded(multispace0, char('}')),
         )),
     )(input)

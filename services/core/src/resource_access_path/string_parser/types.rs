@@ -8,7 +8,7 @@ pub enum Expression<'a> {
 #[derive(Debug)]
 pub enum SelectionSet<'a> {
     Singular(SingularSelectionSet<'a>),
-    Multi(MultiSelectionSet<'a>),
+    Multi(Vec<SingularSelectionSet<'a>>),
 }
 
 #[derive(Debug)]
@@ -16,9 +16,6 @@ pub enum SingularSelectionSet<'a> {
     Explicit(Field<'a>, Box<Option<Expression<'a>>>),
     Wildcard,
 }
-
-#[derive(Debug)]
-pub struct MultiSelectionSet<'a>(pub Vec<SingularSelectionSet<'a>>);
 
 #[derive(Debug)]
 pub struct Field<'a> {
