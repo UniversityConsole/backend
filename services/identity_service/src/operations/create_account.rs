@@ -1,14 +1,13 @@
-use crate::svc::CreateAccountInput;
-use crate::svc::CreateAccountOutput;
-use crate::user_account::UserAccount;
-use crate::Context;
 use aws_sdk_dynamodb::error::{PutItemError, PutItemErrorKind};
 use aws_sdk_dynamodb::types::SdkError;
-use service_core::ddb::put_item::PutItem;
-use service_core::ddb::put_item::PutItemInput;
+use service_core::ddb::put_item::{PutItem, PutItemInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
+
+use crate::svc::{CreateAccountInput, CreateAccountOutput};
+use crate::user_account::UserAccount;
+use crate::Context;
 
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -46,22 +45,20 @@ pub(crate) async fn create_account(
         .condition_expression("attribute_not_exists(Email)")
         .build();
 
-    ddb.put_item(put_item_input)
-        .await
-        .map_err(|err| match err {
-            SdkError::ServiceError {
-                err:
-                    PutItemError {
-                        kind: PutItemErrorKind::ConditionalCheckFailedException(_),
-                        ..
-                    },
-                ..
-            } => EndpointError::Operation(CreateAccountError::DuplicateAccountError),
-            _ => {
-                log::error!("Failed creating item in DynamoDB: {:?}", err);
-                EndpointError::Internal
-            }
-        })?;
+    ddb.put_item(put_item_input).await.map_err(|err| match err {
+        SdkError::ServiceError {
+            err:
+                PutItemError {
+                    kind: PutItemErrorKind::ConditionalCheckFailedException(_),
+                    ..
+                },
+            ..
+        } => EndpointError::Operation(CreateAccountError::DuplicateAccountError),
+        _ => {
+            log::error!("Failed creating item in DynamoDB: {:?}", err);
+            EndpointError::Internal
+        }
+    })?;
 
     Ok(CreateAccountOutput {
         account_id: account.account_id.to_string(),

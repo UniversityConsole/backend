@@ -1,8 +1,9 @@
-use async_graphql_parser::types::OperationType;
 use std::cmp::PartialEq;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+
+use async_graphql_parser::types::OperationType;
 
 #[derive(Debug)]
 pub struct AccessRequest {
@@ -88,9 +89,7 @@ impl PathNode {
     }
 
     pub fn any_match() -> Self {
-        PathNode {
-            fields: Fields::Any,
-        }
+        PathNode { fields: Fields::Any }
     }
 
     pub fn append(&mut self, segment: Segment) -> Result<&mut Self, AppendNodeError> {
@@ -114,11 +113,7 @@ impl Segment {
     pub fn with_args(name: impl Into<String>, args: impl IntoIterator<Item = Argument>) -> Self {
         Segment {
             name: name.into(),
-            args: Some(
-                args.into_iter()
-                    .map(|arg| (arg.name.clone(), arg))
-                    .collect(),
-            ),
+            args: Some(args.into_iter().map(|arg| (arg.name.clone(), arg)).collect()),
         }
     }
 }
@@ -211,10 +206,7 @@ impl Display for Segment {
             let mut joined_args = String::default();
             let mut it = args.values().peekable();
             while let Some(arg) = it.next() {
-                joined_args.push_str(&format!(
-                    "{arg}{}",
-                    if it.peek().is_some() { ", " } else { "" }
-                ));
+                joined_args.push_str(&format!("{arg}{}", if it.peek().is_some() { ", " } else { "" }));
             }
             write!(f, "({})", joined_args)?;
         }
@@ -301,9 +293,7 @@ mod node_tests {
 
         assert!(node.fields.as_explicit().unwrap().is_empty());
 
-        let child = node
-            .append(Segment::no_args("foo"))
-            .expect("node.append failed");
+        let child = node.append(Segment::no_args("foo")).expect("node.append failed");
 
         assert!(child.fields.as_explicit().unwrap().is_empty());
         assert_eq!(node.fields.as_explicit().unwrap().len(), 1);
@@ -369,8 +359,7 @@ mod string_tests {
         path.extend([Segment::no_args("courses"), Segment::no_args("id")]);
         path.extend([Segment::no_args("courses"), Segment::no_args("title")]);
 
-        let expected_fmt =
-            "::{accounts::{firstName, id, lastName}, courses::{id, title}}".to_owned();
+        let expected_fmt = "::{accounts::{firstName, id, lastName}, courses::{id, title}}".to_owned();
         assert_eq!(path.to_string(), expected_fmt);
     }
 }

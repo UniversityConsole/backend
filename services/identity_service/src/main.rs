@@ -11,16 +11,10 @@ use operations::create_account::create_account;
 use operations::describe_account::describe_account;
 use operations::list_accounts::list_accounts;
 use simple_logger::SimpleLogger;
-use svc::identity_service_server::IdentityService;
-use svc::identity_service_server::IdentityServiceServer;
-use svc::CreateAccountInput;
-use svc::CreateAccountOutput;
-use svc::DescribeAccountInput;
-use svc::DescribeAccountOutput;
+use svc::identity_service_server::{IdentityService, IdentityServiceServer};
+use svc::{CreateAccountInput, CreateAccountOutput, DescribeAccountInput, DescribeAccountOutput};
 use tonic::transport::Server;
-use tonic::Request;
-use tonic::Response;
-use tonic::Status;
+use tonic::{Request, Response, Status};
 
 struct IdentityServiceImpl {
     pub ctx: Context,

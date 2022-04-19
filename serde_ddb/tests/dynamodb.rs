@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
+use std::collections::{HashMap, HashSet};
+use std::fmt;
+
 use aws_sdk_dynamodb::model::AttributeValue;
 use serde::de::{MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{HashMap, HashSet};
-use std::fmt;
 
 macro_rules! test_with {
     ($type:ty, $val:expr) => {
         let original = $val;
         let serialized = serde_ddb::to_hashmap(&original).unwrap();
-        let deserialized: std::result::Result<$type, serde_ddb::Error> =
-            serde_ddb::from_hashmap(dbg!(serialized));
+        let deserialized: std::result::Result<$type, serde_ddb::Error> = serde_ddb::from_hashmap(dbg!(serialized));
         assert!(dbg!(&deserialized).is_ok());
         assert_eq!(original, deserialized.unwrap());
     };
@@ -366,12 +366,7 @@ fn can_serialize_enum_in_struct() {
         my_enum: MyEnum,
     }
 
-    test_with!(
-        WithEnum,
-        WithEnum {
-            my_enum: MyEnum::Unit
-        }
-    );
+    test_with!(WithEnum, WithEnum { my_enum: MyEnum::Unit });
     test_with!(
         WithEnum,
         WithEnum {
@@ -407,18 +402,9 @@ fn can_serialize_shortstyle_enum_in_struct() {
     }
 
     let mut value: HashMap<String, AttributeValue> = HashMap::new();
-    value.insert(
-        "my_enum".to_string(),
-        AttributeValue::S(String::from("Unit")),
-    );
+    value.insert("my_enum".to_string(), AttributeValue::S(String::from("Unit")));
 
-    let deserialized: std::result::Result<WithEnum, serde_ddb::Error> =
-        serde_ddb::from_hashmap(value);
+    let deserialized: std::result::Result<WithEnum, serde_ddb::Error> = serde_ddb::from_hashmap(value);
     assert!(dbg!(&deserialized).is_ok());
-    assert_eq!(
-        WithEnum {
-            my_enum: MyEnum::Unit
-        },
-        deserialized.unwrap()
-    );
+    assert_eq!(WithEnum { my_enum: MyEnum::Unit }, deserialized.unwrap());
 }

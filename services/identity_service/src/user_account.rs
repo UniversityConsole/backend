@@ -32,9 +32,10 @@ where
 mod tests {
     #[test]
     fn deserializes_without_required_fields() {
-        use super::*;
         use serde_json::json;
         use uuid::Uuid;
+
+        use super::*;
 
         let input = json!({
             "Email": "example@example.com",
@@ -59,10 +60,12 @@ mod tests {
 
     #[test]
     fn deserializes_from_datastore_doc() {
-        use super::*;
-        use rusoto_dynamodb::AttributeValue;
         use std::collections::HashMap;
+
+        use rusoto_dynamodb::AttributeValue;
         use uuid::Uuid;
+
+        use super::*;
 
         let mut doc = HashMap::new();
         doc.insert(
@@ -116,8 +119,9 @@ mod tests {
 
     #[test]
     fn password_serializes_to_bytes() {
-        use super::*;
         use uuid::Uuid;
+
+        use super::*;
 
         let account = UserAccount {
             account_id: Uuid::nil(),

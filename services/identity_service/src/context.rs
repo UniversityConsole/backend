@@ -1,8 +1,8 @@
 use core::fmt;
 use std::env;
+use std::str::FromStr;
 
 use service_core::ddb::Adapter;
-use std::str::FromStr;
 
 pub(crate) enum ContextKey {
     DynamoDbEndpoint,

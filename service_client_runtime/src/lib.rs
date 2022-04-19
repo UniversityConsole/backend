@@ -1,9 +1,10 @@
+use std::env::{var, VarError};
+use std::fmt::Debug;
+
 use convert_case::{Case, Casing};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use service_core::{EndpointError, HttpError};
-use std::env::{var, VarError};
-use std::fmt::Debug;
 
 #[derive(Debug)]
 pub enum OperationError<E: HttpError> {
@@ -26,11 +27,7 @@ impl ServiceClient {
         })
     }
 
-    pub async fn call_service<T, U, E>(
-        &self,
-        operation: &str,
-        input: T,
-    ) -> Result<U, OperationError<E>>
+    pub async fn call_service<T, U, E>(&self, operation: &str, input: T) -> Result<U, OperationError<E>>
     where
         T: Serialize,
         U: DeserializeOwned,
@@ -46,16 +43,10 @@ impl ServiceClient {
             .json(&input)
             .build()
             .unwrap();
-        let res = client
-            .execute(req)
-            .await
-            .map_err(|e| OperationError::Client(e))?;
+        let res = client.execute(req).await.map_err(|e| OperationError::Client(e))?;
 
         if res.status().is_success() {
-            Ok(res
-                .json::<U>()
-                .await
-                .map_err(|e| OperationError::Client(e))?)
+            Ok(res.json::<U>().await.map_err(|e| OperationError::Client(e))?)
         } else {
             Err(res
                 .json::<EndpointError<E>>()

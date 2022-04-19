@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use aws_sdk_dynamodb::model::AttributeValue;
-
 use serde::de::IntoDeserializer;
 
 use crate::error::{Error, Result};
@@ -341,9 +340,7 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
                     })?;
                 match val {
                     AttributeValue::M(val) => {
-                        let subread = HashMapRead {
-                            hashmap: val.clone(),
-                        };
+                        let subread = HashMapRead { hashmap: val.clone() };
                         let mut des = Deserializer::new(subread);
                         visitor.visit_seq(TupleAccess::new(&mut des))
                     }
@@ -353,12 +350,7 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
         }
     }
 
-    fn deserialize_tuple_struct<V>(
-        self,
-        _name: &'static str,
-        _len: usize,
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_tuple_struct<V>(self, _name: &'static str, _len: usize, visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -376,9 +368,7 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
                     })?;
                 match val {
                     AttributeValue::M(val) => {
-                        let subread = HashMapRead {
-                            hashmap: val.clone(),
-                        };
+                        let subread = HashMapRead { hashmap: val.clone() };
                         let mut des = Deserializer::new(subread);
                         visitor.visit_seq(TupleAccess::new(&mut des))
                     }
@@ -444,12 +434,7 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
         }
     }
 
-    fn deserialize_enum<V>(
-        self,
-        _name: &str,
-        _variants: &'static [&'static str],
-        visitor: V,
-    ) -> Result<V::Value>
+    fn deserialize_enum<V>(self, _name: &str, _variants: &'static [&'static str], visitor: V) -> Result<V::Value>
     where
         V: serde::de::Visitor<'de>,
     {
@@ -617,12 +602,7 @@ impl<'de, 'a, R: Read + 'a> serde::de::SeqAccess<'de> for TupleAccess<'a, R> {
     {
         self.de.current_field = Index::String(format!("_{}", self.current));
         self.current += 1;
-        if self
-            .de
-            .read
-            .get_attribute_value(&self.de.current_field)
-            .is_none()
-        {
+        if self.de.read.get_attribute_value(&self.de.current_field).is_none() {
             return Ok(None);
         }
         seed.deserialize(&mut *self.de).map(Some)
@@ -649,12 +629,7 @@ impl<'de, 'a, R: Read + 'a> serde::de::SeqAccess<'de> for SeqAccess<'a, R> {
     {
         self.de.current_field = Index::Number(self.current);
         self.current += 1;
-        if self
-            .de
-            .read
-            .get_attribute_value(&self.de.current_field)
-            .is_none()
-        {
+        if self.de.read.get_attribute_value(&self.de.current_field).is_none() {
             return Ok(None);
         }
         seed.deserialize(&mut *self.de).map(Some)
@@ -669,11 +644,7 @@ struct MapAccess<'a, R: 'a> {
 
 impl<'a, R: 'a> MapAccess<'a, R> {
     fn new(de: &'a mut Deserializer<R>, keys: Vec<String>) -> Self {
-        MapAccess {
-            de,
-            keys,
-            current: 0,
-        }
+        MapAccess { de, keys, current: 0 }
     }
 }
 
@@ -725,9 +696,7 @@ where
 /// is wrong with the data, for example required struct fields are missing from
 /// the JSON map or some number is too big to fit in the expected primitive
 /// type.
-pub fn from_hashmap<'a, T, S: ::std::hash::BuildHasher + Clone>(
-    hm: HashMap<String, AttributeValue, S>,
-) -> Result<T>
+pub fn from_hashmap<'a, T, S: ::std::hash::BuildHasher + Clone>(hm: HashMap<String, AttributeValue, S>) -> Result<T>
 where
     T: serde::de::Deserialize<'a>,
 {

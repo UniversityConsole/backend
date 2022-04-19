@@ -1,6 +1,6 @@
+use tonic::{Code, Status};
+
 use crate::operation_error::OperationError;
-use tonic::Code;
-use tonic::Status;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EndpointError<E: OperationError + 'static> {

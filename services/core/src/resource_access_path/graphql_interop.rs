@@ -1,8 +1,9 @@
-use super::types::{AccessKind, AccessRequest, PathSet, Segment};
 use async_graphql_parser::types::{
     DocumentOperations, ExecutableDocument, OperationDefinition, OperationType, Selection,
 };
 use thiserror::Error;
+
+use super::types::{AccessKind, AccessRequest, PathSet, Segment};
 
 #[derive(Error, Debug)]
 pub enum CompileError {
@@ -47,11 +48,7 @@ fn from_operation(operation: &OperationDefinition) -> Result<PathSet, CompileErr
     Ok(path_set)
 }
 
-fn append_path(
-    tree: &mut PathSet,
-    mut stack: Vec<Segment>,
-    selection: &Selection,
-) -> Result<(), CompileError> {
+fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selection) -> Result<(), CompileError> {
     match selection {
         Selection::Field(field) => {
             let field = &field.node;

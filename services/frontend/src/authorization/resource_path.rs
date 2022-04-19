@@ -1,5 +1,6 @@
-use async_graphql_parser::types::{OperationDefinition, Selection};
 use std::result::Result;
+
+use async_graphql_parser::types::{OperationDefinition, Selection};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -28,9 +29,7 @@ pub enum PathCompilationError {
 }
 
 /// Compiles all the possible resource access paths of the given operation.
-pub fn compile_operation(
-    operation: OperationDefinition,
-) -> Result<Vec<Segment>, PathCompilationError> {
+pub fn compile_operation(operation: OperationDefinition) -> Result<Vec<Segment>, PathCompilationError> {
     let selection_set = operation.selection_set.into_inner();
     selection_set
         .items
@@ -56,12 +55,8 @@ fn compile_path(selection: Selection) -> Result<Segment, PathCompilationError> {
                     .collect::<Result<Vec<Segment>, PathCompilationError>>()?,
             })
         }
-        Selection::FragmentSpread(_) => Err(PathCompilationError::unsupported_selection_kind(
-            "FragmentSpread",
-        )),
-        Selection::InlineFragment(_) => Err(PathCompilationError::unsupported_selection_kind(
-            "InlineFragment",
-        )),
+        Selection::FragmentSpread(_) => Err(PathCompilationError::unsupported_selection_kind("FragmentSpread")),
+        Selection::InlineFragment(_) => Err(PathCompilationError::unsupported_selection_kind("InlineFragment")),
     }
 }
 

@@ -69,12 +69,7 @@ impl<'a> serde::Serializer for &'a mut SimpleKeySerializer {
         })
     }
 
-    fn serialize_unit_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        _variant: &'static str,
-    ) -> Result<()> {
+    fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str) -> Result<()> {
         Err(Error {
             message: String::from("can't serialize as a key as it's of type unit variant"),
         })
@@ -132,11 +127,7 @@ impl<'a> serde::Serializer for &'a mut SimpleKeySerializer {
         })
     }
 
-    fn serialize_tuple_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeTupleStruct> {
+    fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
         Err(Error {
             message: String::from("can't serialize as a key as it's of type tuple struct"),
         })

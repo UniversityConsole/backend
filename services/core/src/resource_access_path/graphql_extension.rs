@@ -1,6 +1,6 @@
-use async_graphql::extensions;
-use async_graphql::ServerError;
 use std::sync::Arc;
+
+use async_graphql::{extensions, ServerError};
 
 pub struct Authorizer;
 

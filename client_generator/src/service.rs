@@ -1,13 +1,14 @@
 extern crate proc_macro;
 
-use crate::operation::Operation;
-use crate::token_utils;
 use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Error, Parse, ParseStream, Result};
 use syn::spanned::Spanned;
 use syn::{Expr, ExprStruct, Ident};
+
+use crate::operation::Operation;
+use crate::token_utils;
 
 pub struct ServiceDefinition {
     pub service_name: String,
@@ -49,8 +50,8 @@ impl Parse for ServiceDefinition {
 
         for field in params.fields.iter() {
             let name = token_utils::member_as_ident(&field.member)?;
-            let name = ServiceFnParam::from_ident(&name)
-                .map_err(|e| Error::new(e.0.span(), "unknown service parameter"))?;
+            let name =
+                ServiceFnParam::from_ident(&name).map_err(|e| Error::new(e.0.span(), "unknown service parameter"))?;
 
             match &name {
                 &ServiceFnParam::Name => {
@@ -86,10 +87,7 @@ fn parse_operations(expr: &Expr) -> Result<Vec<Operation>> {
         }
     };
     if items.elems.len() == 0 {
-        return Err(Error::new(
-            expr.span(),
-            "service does not declare any operations",
-        ));
+        return Err(Error::new(expr.span(), "service does not declare any operations"));
     }
 
     let mut ops = Vec::<Operation>::new();
@@ -164,10 +162,10 @@ fn create_op_client(op: &Operation) -> proc_macro2::TokenStream {
     let op_fn_name = format_ident!("{}", op.name.to_case(Case::Snake));
     let op_result = get_op_result(&op);
     let op_name = &op.name;
-    let op_input = &op.input.as_ref().map_or(
-        proc_macro2::TokenStream::new(),
-        |input_ty| quote!(input: #input_ty),
-    );
+    let op_input = &op
+        .input
+        .as_ref()
+        .map_or(proc_macro2::TokenStream::new(), |input_ty| quote!(input: #input_ty));
     let op_doc = if let Some(doc_str) = &op.documentation {
         quote! {
             #[doc = #doc_str]

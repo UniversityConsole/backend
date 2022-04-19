@@ -1,11 +1,13 @@
-use super::adapter::Adapter;
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use aws_sdk_dynamodb::error::QueryError;
 use aws_sdk_dynamodb::model::{AttributeValue, Select};
 use aws_sdk_dynamodb::output::QueryOutput;
 use aws_sdk_dynamodb::types::SdkError;
-use std::collections::HashMap;
 use typed_builder::TypedBuilder;
+
+use super::adapter::Adapter;
 
 #[derive(Debug, TypedBuilder)]
 pub struct QueryInput {

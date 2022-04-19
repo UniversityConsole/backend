@@ -1,12 +1,14 @@
 extern crate proc_macro;
 
-use crate::token_utils;
-use quote::quote;
 use std::default::Default;
+
+use quote::quote;
 use syn::parse::{Error, Result};
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
 use syn::{Expr, ExprStruct, Ident, Path, PathSegment};
+
+use crate::token_utils;
 
 pub struct Operation {
     pub name: String,
@@ -65,8 +67,8 @@ pub fn from_expr(expr: &Expr) -> Result<Operation> {
 
     for field in &expr.fields {
         let name = token_utils::member_as_ident(&field.member)?;
-        let name = OperationFnParam::from_ident(&name)
-            .map_err(|e| Error::new(e.0.span(), "unknown operation parameter"))?;
+        let name =
+            OperationFnParam::from_ident(&name).map_err(|e| Error::new(e.0.span(), "unknown operation parameter"))?;
         match name {
             OperationFnParam::Name => {
                 op.name = token_utils::as_str(&field.expr)?;

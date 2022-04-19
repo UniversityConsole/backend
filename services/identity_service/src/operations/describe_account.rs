@@ -1,9 +1,4 @@
-use crate::svc::DescribeAccountInput;
-use crate::svc::DescribeAccountOutput;
-use crate::user_account::UserAccount;
-use crate::Context;
-use aws_sdk_dynamodb::model::AttributeValue;
-use aws_sdk_dynamodb::model::Select;
+use aws_sdk_dynamodb::model::{AttributeValue, Select};
 use common_macros::hash_map;
 use serde::{Deserialize, Serialize};
 use service_core::ddb::get_item::{GetItem, GetItemInput};
@@ -11,6 +6,10 @@ use service_core::ddb::query::{Query, QueryInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
+
+use crate::svc::{DescribeAccountInput, DescribeAccountOutput};
+use crate::user_account::UserAccount;
+use crate::Context;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -52,21 +51,12 @@ pub(crate) async fn describe_account(
     })?;
 
     if output.count == 0 {
-        return Err(EndpointError::operation(
-            DescribeAccountError::NotFoundError,
-        ));
+        return Err(EndpointError::operation(DescribeAccountError::NotFoundError));
     }
 
     let items = output.items.unwrap();
     let item: AccountIdIndexProjection = serde_ddb::from_hashmap(items[0].clone()).unwrap();
-    let projection_expression = [
-        "AccountId",
-        "Email",
-        "FirstName",
-        "LastName",
-        "Discoverable",
-    ]
-    .join(",");
+    let projection_expression = ["AccountId", "Email", "FirstName", "LastName", "Discoverable"].join(",");
     let key = hash_map! {
         "Email".to_string() => AttributeValue::S(item.email),
     };
@@ -87,9 +77,7 @@ pub(crate) async fn describe_account(
                 "Item found on Query, but not found on GetItem. Queried AccountId: {}",
                 account_id.to_hyphenated().to_string()
             );
-            Err(EndpointError::operation(
-                DescribeAccountError::NotFoundError,
-            ))
+            Err(EndpointError::operation(DescribeAccountError::NotFoundError))
         }
         Some(item) => {
             let user_account: UserAccount = serde_ddb::from_hashmap(item).map_err(|e| {

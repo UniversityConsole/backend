@@ -1,5 +1,3 @@
-use crate::user_account::UserAccount;
-use crate::Context;
 use aws_sdk_dynamodb::model::AttributeValue;
 use base64;
 use common_macros::hash_map;
@@ -7,25 +5,18 @@ use serde_ddb::from_hashmap;
 use service_core::ddb::scan::{Scan, ScanInput};
 use service_core::endpoint_error::EndpointError;
 
+use crate::user_account::UserAccount;
+use crate::Context;
+
 pub(crate) async fn list_accounts(
     ctx: &Context,
     ddb: &impl Scan,
     input: &crate::svc::ListAccountsInput,
 ) -> Result<crate::svc::ListAccountsOutput, EndpointError<!>> {
-    let page_size = if input.page_size > 0 {
-        input.page_size
-    } else {
-        32
-    };
+    let page_size = if input.page_size > 0 { input.page_size } else { 32 };
 
     // TODO Find a way not to hard-code this.
-    let projection_fields = [
-        "AccountId",
-        "Email",
-        "FirstName",
-        "LastName",
-        "Discoverable",
-    ];
+    let projection_fields = ["AccountId", "Email", "FirstName", "LastName", "Discoverable"];
     let projection_expression = projection_fields.join(",");
     let page_start = if let Some(v) = &input.starting_token {
         const PARSE_ERR_MSG: &str = "Could not parse StartingToken.";
@@ -109,8 +100,5 @@ pub(crate) async fn list_accounts(
 
     log::debug!("Got accounts: {:?}", &accounts);
 
-    Ok(crate::svc::ListAccountsOutput {
-        next_token,
-        accounts,
-    })
+    Ok(crate::svc::ListAccountsOutput { next_token, accounts })
 }

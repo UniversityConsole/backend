@@ -4,7 +4,6 @@ mod token_utils;
 
 extern crate proc_macro;
 use proc_macro::TokenStream;
-
 use service::{create_service_client, ServiceDefinition};
 use syn::parse_macro_input;
 

@@ -10,8 +10,7 @@ use crate::error::{Error, Result};
 macro_rules! impl_serialize_n {
     ($type:ty, $method:ident) => {
         fn $method(self, value: $type) -> Result<()> {
-            self.writer
-                .insert_value(AttributeValue::N(value.to_string()));
+            self.writer.insert_value(AttributeValue::N(value.to_string()));
             Ok(())
         }
     };
@@ -98,14 +97,12 @@ where
     impl_serialize_n!(f64, serialize_f64);
 
     fn serialize_char(self, value: char) -> Result<()> {
-        self.writer
-            .insert_value(AttributeValue::S(value.to_string()));
+        self.writer.insert_value(AttributeValue::S(value.to_string()));
         Ok(())
     }
 
     fn serialize_str(self, value: &str) -> Result<()> {
-        self.writer
-            .insert_value(AttributeValue::S(value.to_string()));
+        self.writer.insert_value(AttributeValue::S(value.to_string()));
         Ok(())
     }
 
@@ -124,12 +121,7 @@ where
         self.serialize_unit()
     }
 
-    fn serialize_unit_variant(
-        self,
-        _name: &'static str,
-        _variant_index: u32,
-        variant: &'static str,
-    ) -> Result<()> {
+    fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, variant: &'static str) -> Result<()> {
         EnumCompound::new(self, variant, false).end_wrapper();
         Ok(())
     }
@@ -179,11 +171,7 @@ where
         Ok(Compound::new(self))
     }
 
-    fn serialize_tuple_struct(
-        self,
-        _name: &'static str,
-        _len: usize,
-    ) -> Result<Self::SerializeTupleStruct> {
+    fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
         Ok(Compound::new(self))
     }
 
@@ -225,10 +213,7 @@ struct SeqWriter<'a, W: 'a> {
 impl<'a, W> SeqWriter<'a, W> {
     fn new(ser: &'a mut Serializer<W>) -> SeqWriter<'a, W> {
         let writer = VecWriter { list: Vec::new() };
-        SeqWriter {
-            ser,
-            current: writer,
-        }
+        SeqWriter { ser, current: writer }
     }
 }
 
@@ -275,11 +260,7 @@ impl<'a, W> EnumCompound<'a, W>
 where
     W: WriterTrait,
 {
-    fn new(
-        ser: &'a mut Serializer<W>,
-        variant: &'static str,
-        has_values: bool,
-    ) -> EnumCompound<'a, W> {
+    fn new(ser: &'a mut Serializer<W>, variant: &'static str, has_values: bool) -> EnumCompound<'a, W> {
         let wrapper_to_close = if ser.writer.is_in_object() {
             let mut writer = HashMapWriter {
                 root: HashMap::new(),
@@ -294,8 +275,7 @@ where
             Some(writer)
         } else {
             ser.writer.set_key(String::from("___enum_tag"));
-            ser.writer
-                .insert_value(AttributeValue::S(variant.to_string()));
+            ser.writer.insert_value(AttributeValue::S(variant.to_string()));
             if has_values {
                 ser.writer.set_key(String::from("___enum_values"));
             }
@@ -318,9 +298,7 @@ where
 
     fn end_wrapper(self) {
         if let Some(wrapper) = self.wrapper_to_close {
-            self.ser
-                .writer
-                .insert_value(AttributeValue::M(wrapper.root));
+            self.ser.writer.insert_value(AttributeValue::M(wrapper.root));
         }
     }
 }
@@ -351,9 +329,7 @@ where
             }
         } else {
             Err(Error {
-                message: String::from(
-                    "trying to serialize something that is not a tuple as a tuple",
-                ),
+                message: String::from("trying to serialize something that is not a tuple as a tuple"),
             })
         }
     }
@@ -363,9 +339,7 @@ where
         if let Some(mut wrapper) = self.wrapper_to_close {
             (&mut wrapper).insert_value(AttributeValue::M(self.values_writer.root.clone()));
             if !self.is_root {
-                self.ser
-                    .writer
-                    .insert_value(AttributeValue::M(wrapper.root));
+                self.ser.writer.insert_value(AttributeValue::M(wrapper.root));
             }
         } else if !self.is_root {
             self.ser
@@ -401,9 +375,7 @@ where
         if let Some(mut wrapper) = self.wrapper_to_close {
             (&mut wrapper).insert_value(AttributeValue::M(self.values_writer.root.clone()));
             if !self.is_root {
-                self.ser
-                    .writer
-                    .insert_value(AttributeValue::M(wrapper.root));
+                self.ser.writer.insert_value(AttributeValue::M(wrapper.root));
             }
         } else if !self.is_root {
             self.ser
@@ -468,9 +440,7 @@ where
             }
         } else {
             Err(Error {
-                message: String::from(
-                    "trying to serialize something that is not a tuple as a tuple",
-                ),
+                message: String::from("trying to serialize something that is not a tuple as a tuple"),
             })
         }
     }
@@ -513,9 +483,7 @@ where
             }
         } else {
             Err(Error {
-                message: String::from(
-                    "trying to serialize something that is not a tuple as a tuple",
-                ),
+                message: String::from("trying to serialize something that is not a tuple as a tuple"),
             })
         }
     }
@@ -562,9 +530,7 @@ where
             }
         } else {
             Err(Error {
-                message: String::from(
-                    "trying to deserialize something that is not a struct as a struct",
-                ),
+                message: String::from("trying to deserialize something that is not a struct as a struct"),
             })
         }
     }

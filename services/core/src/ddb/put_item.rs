@@ -1,12 +1,13 @@
-use super::adapter::Adapter;
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use aws_sdk_dynamodb::error::PutItemError;
-use aws_sdk_dynamodb::model::AttributeValue;
-use aws_sdk_dynamodb::model::ReturnValue;
+use aws_sdk_dynamodb::model::{AttributeValue, ReturnValue};
 use aws_sdk_dynamodb::output::PutItemOutput;
 use aws_sdk_dynamodb::types::SdkError;
-use std::collections::HashMap;
 use typed_builder::TypedBuilder;
+
+use super::adapter::Adapter;
 
 #[derive(TypedBuilder)]
 pub struct PutItemInput {
