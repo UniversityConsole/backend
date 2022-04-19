@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use async_graphql::{extensions, ServerError};
+use async_graphql::extensions;
 
 pub struct Authorizer;
 
@@ -22,7 +22,7 @@ impl extensions::Extension for AuthorizerExtension {
         variables: &async_graphql::Variables,
         next: extensions::NextParseQuery<'_>,
     ) -> async_graphql::ServerResult<async_graphql_parser::types::ExecutableDocument> {
-        let document = async_graphql_parser::parse_query(&query)?;
+        let _document = async_graphql_parser::parse_query(&query)?;
         // let _access_requests = super::graphql_interop::from_document(&document)
         //     .map_err(|e| ServerError::new(e.to_string(), None))?;
         next.run(ctx, query, variables).await

@@ -3,7 +3,7 @@ use async_graphql_parser::types::{
 };
 use thiserror::Error;
 
-use super::types::{AccessKind, AccessRequest, PathSet, Segment};
+use super::types::{AccessKind, AccessRequest, AppendNodeError, PathNode, PathSet, Segment};
 
 #[derive(Error, Debug)]
 pub enum CompileError {
@@ -15,6 +15,9 @@ pub enum CompileError {
 
     #[error("Operation {0} not supported.")]
     UnsupportedOperation(OperationType),
+
+    #[error("Cannot select subfields of a match-any.")]
+    CannotAppendToAny,
 }
 
 pub fn from_document(document: &ExecutableDocument) -> Result<Vec<AccessRequest>, CompileError> {
@@ -28,14 +31,14 @@ pub fn from_document(document: &ExecutableDocument) -> Result<Vec<AccessRequest>
 
             Ok(vec![AccessRequest {
                 kind: access_kind,
-                path_set: from_operation(operation)?,
+                paths: from_operation(operation)?,
             }])
         }
         DocumentOperations::Multiple(_) => Err(CompileError::MultiOperationsNotSupported),
     }
 }
 
-fn from_operation(operation: &OperationDefinition) -> Result<PathSet, CompileError> {
+fn from_operation(operation: &OperationDefinition) -> Result<Vec<PathNode>, CompileError> {
     let mut path_set = PathSet::default();
     operation
         .selection_set
@@ -44,8 +47,7 @@ fn from_operation(operation: &OperationDefinition) -> Result<PathSet, CompileErr
         .iter()
         .map(|i| &i.node)
         .try_for_each(|node| append_path(&mut path_set, vec![], node))?;
-
-    Ok(path_set)
+    Ok(path_set.into_paths())
 }
 
 fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selection) -> Result<(), CompileError> {
@@ -57,7 +59,9 @@ fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selectio
 
             let sub_fields = &field.selection_set.node.items;
             if sub_fields.is_empty() {
-                tree.extend(stack.clone());
+                tree.extend(stack.clone()).map_err(|e| match e {
+                    AppendNodeError::CannotAppendToAny => CompileError::CannotAppendToAny,
+                })?;
             }
 
             for sub_field in sub_fields {
@@ -91,7 +95,9 @@ mod tests {
         let request = access_requests.first().unwrap();
         assert_eq!(request.kind, AccessKind::Query);
 
-        let expected_path_set = "::{apiVersion, foo::{bar, baz}}";
-        assert_eq!(request.path_set.to_string(), expected_path_set.to_string());
+        let expected_paths = ["apiVersion", "foo::{bar, baz}"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
     }
 }

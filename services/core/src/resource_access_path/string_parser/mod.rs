@@ -1,6 +1,6 @@
 mod parser;
 mod string_literal;
-mod types;
+pub mod types;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ParseError {
@@ -8,7 +8,7 @@ pub enum ParseError {
     Unknown,
 }
 
-pub fn _parse(input: &str) -> Result<types::Expression<'_>, ParseError> {
+pub fn parse(input: &str) -> Result<types::Expression<'_>, ParseError> {
     let (_, expression) = parser::path_set(input).map_err(|_| ParseError::Unknown)?;
     Ok(expression)
 }

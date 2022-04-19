@@ -2,7 +2,7 @@ use std::boxed::Box;
 
 #[derive(Debug)]
 pub enum Expression<'a> {
-    SelectionSet(SelectionSet<'a>),
+    SelectionSet(SingularSelectionSet<'a>),
 }
 
 #[derive(Debug)]
@@ -13,7 +13,7 @@ pub enum SelectionSet<'a> {
 
 #[derive(Debug)]
 pub enum SingularSelectionSet<'a> {
-    Explicit(Field<'a>, Box<Option<Expression<'a>>>),
+    Explicit(Field<'a>, Box<Option<SelectionSet<'a>>>),
     Wildcard,
 }
 
@@ -32,7 +32,7 @@ pub struct FieldArg<'a> {
 #[derive(Debug)]
 pub enum FieldArgValue {
     StringLiteral(String),
-    NumericLiteral(f64),
+    IntegerLiteral(i64),
     BoolLiteral(bool),
     Wildcard,
 }

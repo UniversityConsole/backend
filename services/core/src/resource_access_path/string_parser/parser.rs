@@ -1,10 +1,9 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
-use nom::character::complete::{char, multispace0};
+use nom::character::complete::{char, digit1, multispace0, one_of};
 use nom::character::{is_alphabetic, is_alphanumeric};
-use nom::combinator::{cut, map, opt, recognize, value};
+use nom::combinator::{cut, map, map_res, opt, recognize, value};
 use nom::multi::separated_list0;
-use nom::number::complete::double;
 use nom::sequence::{pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
 
@@ -13,6 +12,10 @@ use super::types::{Expression, Field, FieldArg, FieldArgValue, SelectionSet, Sin
 
 pub fn bool(input: &str) -> IResult<&str, bool> {
     alt((value(true, tag("true")), value(false, tag("false"))))(input)
+}
+
+pub fn i64(input: &str) -> IResult<&str, i64> {
+    map_res(recognize(pair(opt(one_of("+-")), digit1)), str::parse)(input)
 }
 
 pub fn identifier(input: &str) -> IResult<&str, &str> {
@@ -27,7 +30,7 @@ pub fn field_arg_value(input: &str) -> IResult<&str, FieldArgValue> {
 
     alt((
         map(bool, FieldArgValue::BoolLiteral),
-        map(double, FieldArgValue::NumericLiteral),
+        map(i64, FieldArgValue::IntegerLiteral),
         map(string_literal, FieldArgValue::StringLiteral),
         map(tag("*"), |_| FieldArgValue::Wildcard),
     ))(input)
@@ -64,14 +67,15 @@ pub fn singular_selection_set<'a>(input: &'a str) -> IResult<&'a str, SingularSe
         multispace0,
         alt((
             map(char('*'), |_| SingularSelectionSet::Wildcard),
-            map(pair(field, opt(path_set)), |p: (Field, Option<Expression<'a>>)| {
-                SingularSelectionSet::Explicit(p.0, p.1.into())
-            }),
+            map(
+                pair(field, opt(preceded(tag("::"), selection_set))),
+                |p: (Field, Option<SelectionSet<'a>>)| SingularSelectionSet::Explicit(p.0, p.1.into()),
+            ),
         )),
     )(input)
 }
 
-pub fn multi_selection_set<'a>(input: &'a str) -> IResult<&'a str, Vec<SingularSelectionSet<'a>>> {
+pub fn multi_selection_set(input: &str) -> IResult<&str, Vec<SingularSelectionSet<'_>>> {
     preceded(
         char('{'),
         cut(terminated(
@@ -81,7 +85,7 @@ pub fn multi_selection_set<'a>(input: &'a str) -> IResult<&'a str, Vec<SingularS
     )(input)
 }
 
-pub fn selection_set<'a>(input: &'a str) -> IResult<&'a str, SelectionSet<'a>> {
+pub fn selection_set(input: &str) -> IResult<&str, SelectionSet<'_>> {
     alt((
         map(singular_selection_set, SelectionSet::Singular),
         map(multi_selection_set, SelectionSet::Multi),
@@ -89,7 +93,7 @@ pub fn selection_set<'a>(input: &'a str) -> IResult<&'a str, SelectionSet<'a>> {
 }
 
 pub fn path_set(input: &str) -> IResult<&str, Expression<'_>> {
-    preceded(tag("::"), map(selection_set, Expression::SelectionSet))(input)
+    map(singular_selection_set, Expression::SelectionSet)(input)
 }
 
 #[cfg(test)]
@@ -98,9 +102,6 @@ mod test {
 
     #[test]
     fn playground() {
-        println!(
-            "{:#?}",
-            path_set("::{courses::{id, title, owner::*}, accounts(includeNonDiscoverable: true)::*, me::*}")
-        );
+        println!("{:#?}", path_set("courses::{id, title, owner::*}"));
     }
 }
