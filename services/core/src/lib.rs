@@ -1,5 +1,6 @@
 #![feature(never_type)]
 #![feature(map_try_insert)]
+#![feature(let_else)]
 
 pub mod ddb;
 pub mod endpoint_error;

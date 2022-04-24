@@ -112,6 +112,14 @@ impl PathNode {
             .try_insert(segment.clone(), PathNode::new(segment))
             .map_or_else(|e| e.entry.into_mut(), |v| v))
     }
+
+    pub fn fields(&self) -> Vec<&PathNode> {
+        self.fields.values().collect()
+    }
+
+    pub fn into_fields(self) -> Vec<PathNode> {
+        self.fields.into_values().collect()
+    }
 }
 
 impl Segment {

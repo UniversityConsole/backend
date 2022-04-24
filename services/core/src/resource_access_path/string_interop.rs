@@ -114,10 +114,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn playground() {
-        println!(
-            "{:#?}",
-            from_string("accounts(includeNonDiscoverable: true)::{a(id: *), b, c}")
-        );
+    fn simple_expression() {
+        use super::super::types::ArgumentValue;
+
+        let raw = "accounts(includeNonDiscoverable: true)::{a(id: *), b}";
+        let roots = from_string(raw).expect("parse failed").into_paths();
+        let root = roots.first().expect("path_set empty");
+
+        assert!(matches!(root.segment, Segment::Named(..)));
+
+        let Segment::Named(field, args) = &root.segment else { panic!("segment is not named") };
+        assert_eq!(field.as_str(), "accounts");
+
+        let Some(args) = args else { panic!("no args on accounts") };
+        assert_eq!(args.len(), 1);
+
+        let Some(arg) = args.get(&"includeNonDiscoverable".to_owned()) else { panic!("no argS") };
+        assert_eq!(arg.name.as_str(), "includeNonDiscoverable");
+        assert!(matches!(arg.value, ArgumentValue::BoolLiteral(true)));
+
+        let fields = root.fields();
+        let Some(first_field) = fields.get(0) else { panic!("no field a") };
+        let Segment::Named(field, args) = &first_field.segment else { panic!("segment not named") };
+        assert_eq!(field.as_str(), "a");
+        assert!(args.is_some());
+
+        let Some(first_field) = fields.get(1) else { panic!("no field b") };
+        let Segment::Named(field, args) = &first_field.segment else { panic!("segment not named") };
+        assert_eq!(field.as_str(), "b");
+        assert!(args.is_none());
     }
 }
