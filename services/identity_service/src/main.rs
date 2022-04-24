@@ -53,6 +53,13 @@ impl IdentityService for IdentityServiceImpl {
             .map(Response::new)
             .map_err(|err| err.into())
     }
+
+    async fn update_permissions(
+        &self,
+        request: Request<svc::UpdatePermissionsInput>,
+    ) -> Result<Response<svc::UpdatePermissionsOutput>, Status> {
+        Err(Status::ok("ok"))
+    }
 }
 
 #[tokio::main]

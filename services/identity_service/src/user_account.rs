@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize, Serializer};
+use service_core::resource_access::PolicyStatement;
 use sha2::{Digest, Sha512};
 use uuid::Uuid;
 
@@ -16,7 +17,15 @@ pub struct UserAccount {
     #[serde(default = "String::new")]
     pub password: String,
     pub discoverable: bool,
+    pub permissions_document: PermissionsDocument,
 }
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct PermissionsDocument {
+    pub statement: Vec<PolicyStatement>,
+}
+
 
 fn serialize_password<S>(val: &String, serializer: S) -> Result<S::Ok, S::Error>
 where

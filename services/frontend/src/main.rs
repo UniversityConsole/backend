@@ -3,7 +3,7 @@ mod integration;
 
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema, ID};
+use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;

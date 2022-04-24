@@ -8,6 +8,7 @@ service IdentityService {
     rpc CreateAccount(CreateAccountInput) returns (CreateAccountOutput);
     rpc DescribeAccount(DescribeAccountInput) returns (DescribeAccountOutput);
     rpc ListAccounts(ListAccountsInput) returns (ListAccountsOutput);
+    rpc UpdatePermissions(UpdatePermissionsInput) returns (UpdatePermissionsOutput);
 }
 
 
@@ -49,11 +50,38 @@ message ListAccountsOutput {
     repeated Account accounts = 2;
 }
 
-
 message Account {
     string account_id = 1;
     string email = 2;
     string first_name = 3;
     string last_name = 4;
     bool discoverable = 5;
+}
+
+
+message UpdatePermissionsInput {
+    string account_id = 1;
+    PermissionsDocument permissions_document = 2;
+}
+
+message UpdatePermissionsOutput {}
+
+message PermissionsDocument {
+    repeated PolicyStatement statements = 1;
+}
+
+message PolicyStatement {
+    enum Kind {
+        QUERY = 0;
+        MUTATION = 1;
+    }
+
+    enum Effect {
+        ALLOW = 0;
+        DENY = 1;
+    }
+
+    Kind kind = 1;
+    Effect effect = 2;
+    repeated string paths = 3;
 }

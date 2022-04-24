@@ -6,7 +6,7 @@ use service_core::operation_error::OperationError;
 use uuid::Uuid;
 
 use crate::svc::{CreateAccountInput, CreateAccountOutput};
-use crate::user_account::UserAccount;
+use crate::user_account::{PermissionsDocument, UserAccount};
 use crate::Context;
 
 #[non_exhaustive]
@@ -37,6 +37,7 @@ pub(crate) async fn create_account(
         last_name: account_attributes.last_name.clone(),
         password: account_attributes.password.clone(),
         discoverable: account_attributes.discoverable,
+        permissions_document: PermissionsDocument::default(),
     };
 
     let put_item_input = PutItemInput::builder()

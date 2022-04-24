@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 use async_graphql_parser::types::OperationType;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct AccessRequest {
@@ -11,13 +12,13 @@ pub struct AccessRequest {
     pub paths: Vec<PathNode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Clone, PartialEq, Deserialize)]
 pub struct PolicyStatement {
     pub kind: AccessKind,
     pub paths: Vec<PathNode>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AccessKind {
     Query,
     Mutation,

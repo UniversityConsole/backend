@@ -95,13 +95,3 @@ pub fn selection_set(input: &str) -> IResult<&str, SelectionSet<'_>> {
 pub fn path_set(input: &str) -> IResult<&str, Expression<'_>> {
     map(singular_selection_set, Expression::SelectionSet)(input)
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn playground() {
-        println!("{:#?}", path_set("courses::{id, title, owner::*}"));
-    }
-}

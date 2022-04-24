@@ -1,7 +1,7 @@
 use thiserror::Error;
 
-use super::string_parser::{parse, types as parser_types, ParseError};
-use super::types::{AppendNodeError, PathSet, Segment};
+use super::{parse, types as parser_types, ParseError};
+use crate::resource_access::types::{AppendNodeError, Argument, ArgumentValue, PathSet, Segment};
 
 #[derive(Error, Debug)]
 pub enum CompileError {
@@ -68,8 +68,6 @@ fn tr_singular_selection_set(
 ) -> Result<(), CompileError> {
     use parser_types::{Field, FieldArgValue, SingularSelectionSet};
 
-    use super::types::{Argument, ArgumentValue};
-
     match selection {
         SingularSelectionSet::Wildcard => {
             path.push(Segment::Any);
@@ -115,8 +113,6 @@ mod tests {
 
     #[test]
     fn simple_expression() {
-        use super::super::types::ArgumentValue;
-
         let raw = "accounts(includeNonDiscoverable: true)::{a(id: *), b}";
         let roots = from_string(raw).expect("parse failed").into_paths();
         let root = roots.first().expect("path_set empty");

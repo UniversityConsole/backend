@@ -3,7 +3,7 @@ use async_graphql_parser::types::{
 };
 use thiserror::Error;
 
-use super::types::{AccessKind, AccessRequest, AppendNodeError, PathNode, PathSet, Segment};
+use crate::resource_access::types::{AccessKind, AccessRequest, AppendNodeError, PathNode, PathSet, Segment};
 
 #[derive(Error, Debug)]
 pub enum CompileError {
