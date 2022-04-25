@@ -1,7 +1,11 @@
+use std::convert::From;
+
 use serde::{Deserialize, Serialize, Serializer};
-use service_core::resource_access::PolicyStatement;
+use service_core::resource_access::AccessKind;
 use sha2::{Digest, Sha512};
 use uuid::Uuid;
+
+use crate::svc::PermissionsDocument as PermissionsDocumentModel;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -23,7 +27,15 @@ pub struct UserAccount {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct PermissionsDocument {
-    pub statement: Vec<PolicyStatement>,
+    #[serde(default)]
+    pub statements: Vec<RenderedPolicyStatement>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct RenderedPolicyStatement {
+    pub access_kind: AccessKind,
+    pub paths: Vec<String>,
 }
 
 
@@ -36,6 +48,49 @@ where
     let hashed = hasher.finalize();
     serializer.serialize_bytes(hashed.as_slice())
 }
+
+impl From<PermissionsDocument> for PermissionsDocumentModel {
+    fn from(val: PermissionsDocument) -> PermissionsDocumentModel {
+        use crate::svc::policy_statement::AccessKind as AccessKindModel;
+        use crate::svc::PolicyStatement;
+
+        PermissionsDocumentModel {
+            statements: val
+                .statements
+                .into_iter()
+                .map(|s| PolicyStatement {
+                    access_kind: match s.access_kind {
+                        AccessKind::Mutation => AccessKindModel::Mutation,
+                        AccessKind::Query => AccessKindModel::Query,
+                    } as i32,
+                    paths: s.paths,
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<PermissionsDocumentModel> for PermissionsDocument {
+    fn from(val: PermissionsDocumentModel) -> PermissionsDocument {
+        use crate::svc::policy_statement::AccessKind as AccessKindModel;
+
+        PermissionsDocument {
+            statements: val
+                .statements
+                .into_iter()
+                .map(|s| RenderedPolicyStatement {
+                    access_kind: if s.access_kind == AccessKindModel::Mutation as i32 {
+                        AccessKind::Mutation
+                    } else {
+                        AccessKind::Query
+                    },
+                    paths: s.paths,
+                })
+                .collect(),
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -62,6 +117,7 @@ mod tests {
             last_name: "Doe".to_string(),
             password: "super_secret".to_string(),
             discoverable: true,
+            ..Default::default()
         };
 
         assert_eq!(expected, serde_json::from_str(&input.as_str()).unwrap());
@@ -120,6 +176,7 @@ mod tests {
             last_name: "Doe".to_string(),
             password: "".to_string(),
             discoverable: true,
+            ..Default::default()
         };
         let actual = serde_dynamodb::from_hashmap::<UserAccount, _>(doc).unwrap();
 
@@ -139,6 +196,7 @@ mod tests {
             last_name: "Doe".to_string(),
             password: "super_secret".to_string(),
             discoverable: false,
+            ..Default::default()
         };
         let serialized = serde_dynamodb::to_hashmap(&account).unwrap();
         let serialized_password_attr = serialized.get(&"Password".to_string()).unwrap();

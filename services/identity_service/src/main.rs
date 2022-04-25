@@ -9,7 +9,9 @@ use context::Context;
 use log::LevelFilter;
 use operations::create_account::create_account;
 use operations::describe_account::describe_account;
+use operations::get_permissions::get_permissions;
 use operations::list_accounts::list_accounts;
+use operations::update_permissions::update_permissions;
 use simple_logger::SimpleLogger;
 use svc::identity_service_server::{IdentityService, IdentityServiceServer};
 use svc::{CreateAccountInput, CreateAccountOutput, DescribeAccountInput, DescribeAccountOutput};
@@ -46,8 +48,6 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<svc::ListAccountsInput>,
     ) -> Result<Response<svc::ListAccountsOutput>, Status> {
-        log::debug!("got ListAccounts request: {:?}.", &request);
-
         list_accounts(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
@@ -58,7 +58,20 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<svc::UpdatePermissionsInput>,
     ) -> Result<Response<svc::UpdatePermissionsOutput>, Status> {
-        Err(Status::ok("ok"))
+        update_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
+    }
+
+    async fn get_permissions(
+        &self,
+        request: Request<svc::GetPermissionsInput>,
+    ) -> Result<Response<svc::GetPermissionsOutput>, Status> {
+        get_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
     }
 }
 
