@@ -2,7 +2,7 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag, take_while, take_while1};
 use nom::character::complete::{char, digit1, multispace0, one_of};
 use nom::character::{is_alphabetic, is_alphanumeric};
-use nom::combinator::{cut, map, map_res, opt, recognize, value};
+use nom::combinator::{cut, eof, map, map_res, opt, recognize, value};
 use nom::multi::separated_list0;
 use nom::sequence::{pair, preceded, separated_pair, terminated, tuple};
 use nom::IResult;
@@ -93,5 +93,16 @@ pub fn selection_set(input: &str) -> IResult<&str, SelectionSet<'_>> {
 }
 
 pub fn path_set(input: &str) -> IResult<&str, Expression<'_>> {
-    map(singular_selection_set, Expression::SelectionSet)(input)
+    terminated(map(singular_selection_set, Expression::SelectionSet), eof)(input)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn invalid_path_set() {
+        let raw = "foo::";
+        assert!(path_set(raw).is_err());
+    }
 }
