@@ -4,9 +4,11 @@ mod context;
 mod operations;
 mod svc;
 mod user_account;
+mod utils;
 
 use context::Context;
 use log::LevelFilter;
+use operations::authorize::authorize;
 use operations::create_account::create_account;
 use operations::describe_account::describe_account;
 use operations::get_permissions::get_permissions;
@@ -69,6 +71,13 @@ impl IdentityService for IdentityServiceImpl {
         request: Request<svc::GetPermissionsInput>,
     ) -> Result<Response<svc::GetPermissionsOutput>, Status> {
         get_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
+    }
+
+    async fn authorize(&self, request: Request<svc::AuthorizeInput>) -> Result<Response<svc::AuthorizeOutput>, Status> {
+        authorize(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())

@@ -5,8 +5,9 @@ use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
 
-use crate::svc::{GetPermissionsInput, GetPermissionsOutput};
+use crate::svc::{AuthorizeInput, AuthorizeOutput};
 use crate::user_account::PermissionsDocument;
+use crate::utils::validation::validate_resource_paths;
 use crate::utils::{get_permissions_from_ddb, GetPermissionsFromDdbError};
 use crate::Context;
 
@@ -26,33 +27,42 @@ struct PermissionsDocumentItem {
 
 #[non_exhaustive]
 #[derive(thiserror::Error, Debug)]
-pub enum GetPermissionsError {
+pub enum AuthorizeError {
     #[error("Account not found.")]
-    NotFoundError,
+    NotFound,
+
+    #[error("Resource path {1} in statement {0} is invalid.")]
+    InvalidResourcePath(usize, usize),
 }
 
-pub(crate) async fn get_permissions(
+pub(crate) async fn authorize(
     ctx: &Context,
     ddb: &(impl GetItem + Query),
-    input: &GetPermissionsInput,
-) -> Result<GetPermissionsOutput, EndpointError<GetPermissionsError>> {
+    input: &AuthorizeInput,
+) -> Result<AuthorizeOutput, EndpointError<AuthorizeError>> {
     let account_id = Uuid::parse_str(input.account_id.clone().as_mut())
         .map_err(|_| EndpointError::validation("Invalid account ID provided."))?;
     let permissions_document = get_permissions_from_ddb(&account_id, &ctx.accounts_table_name, ddb)
         .await
         .map_err(|e| match e {
             GetPermissionsFromDdbError::Internal => EndpointError::internal(),
-            GetPermissionsFromDdbError::NotFound => EndpointError::operation(GetPermissionsError::NotFoundError),
+            GetPermissionsFromDdbError::NotFound => EndpointError::operation(AuthorizeError::NotFound),
         })?;
-    Ok(GetPermissionsOutput {
-        permissions_document: Some(permissions_document.into()),
+
+    validate_resource_paths(&permissions_document.statements).map_err(|(stmt_idx, path_idx)| {
+        EndpointError::operation(AuthorizeError::InvalidResourcePath(stmt_idx, path_idx))
+    })?;
+
+    Ok(AuthorizeOutput {
+        permission_granted: false,
     })
 }
 
-impl OperationError for GetPermissionsError {
+impl OperationError for AuthorizeError {
     fn code(&self) -> tonic::Code {
         match self {
-            Self::NotFoundError => tonic::Code::NotFound,
+            Self::NotFound => tonic::Code::NotFound,
+            Self::InvalidResourcePath(..) => tonic::Code::InvalidArgument,
         }
     }
 }

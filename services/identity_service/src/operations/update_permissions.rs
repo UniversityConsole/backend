@@ -8,7 +8,8 @@ use service_core::operation_error::OperationError;
 use uuid::Uuid;
 
 use crate::svc::{UpdatePermissionsInput, UpdatePermissionsOutput};
-use crate::user_account::{PermissionsDocument, RenderedPolicyStatement};
+use crate::user_account::PermissionsDocument;
+use crate::utils::validation::validate_resource_paths;
 use crate::Context;
 
 #[derive(Serialize, Deserialize)]
@@ -91,20 +92,6 @@ pub(crate) async fn update_permissions(
     })?;
 
     Ok(UpdatePermissionsOutput {})
-}
-
-fn validate_resource_paths<'a>(
-    statements: impl IntoIterator<Item = &'a RenderedPolicyStatement>,
-) -> Result<(), (usize, usize)> {
-    use service_core::resource_access::string_interop::compiler::from_string;
-
-    for (stmt_idx, stmt) in statements.into_iter().enumerate() {
-        for (path_idx, path) in stmt.paths.iter().enumerate() {
-            from_string(&path).map_err(|_| (stmt_idx, path_idx))?;
-        }
-    }
-
-    Ok(())
 }
 
 impl OperationError for UpdatePermissionsError {

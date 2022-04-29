@@ -10,6 +10,7 @@ service IdentityService {
     rpc ListAccounts(ListAccountsInput) returns (ListAccountsOutput);
     rpc UpdatePermissions(UpdatePermissionsInput) returns (UpdatePermissionsOutput);
     rpc GetPermissions(GetPermissionsInput) returns (GetPermissionsOutput);
+    rpc Authorize(AuthorizeInput) returns (AuthorizeOutput);
 }
 
 
@@ -80,7 +81,26 @@ message PermissionsDocument {
     repeated PolicyStatement statements = 1;
 }
 
+message AuthorizeInput {
+    string account_id = 1;
+    AccessRequest access_request = 2;
+}
+
+message AuthorizeOutput {
+    bool permission_granted = 1;
+}
+
 message PolicyStatement {
+    enum AccessKind {
+        QUERY = 0;
+        MUTATION = 1;
+    }
+
+    AccessKind access_kind = 1;
+    repeated string paths = 3;
+}
+
+message AccessRequest {
     enum AccessKind {
         QUERY = 0;
         MUTATION = 1;
