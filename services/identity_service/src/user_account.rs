@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::svc::PermissionsDocument as PermissionsDocumentModel;
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct UserAccount {
@@ -21,6 +21,7 @@ pub struct UserAccount {
     #[serde(default = "String::new")]
     pub password: String,
     pub discoverable: bool,
+    #[serde(default)]
     pub permissions_document: PermissionsDocument,
 }
 
@@ -94,6 +95,8 @@ impl From<PermissionsDocumentModel> for PermissionsDocument {
 
 #[cfg(test)]
 mod tests {
+
+
     #[test]
     fn deserializes_without_required_fields() {
         use serde_json::json;
@@ -120,14 +123,14 @@ mod tests {
             ..Default::default()
         };
 
-        assert_eq!(expected, serde_json::from_str(&input.as_str()).unwrap());
+        assert_eq!(expected, serde_json::from_str(input.as_str()).unwrap());
     }
 
     #[test]
     fn deserializes_from_datastore_doc() {
         use std::collections::HashMap;
 
-        use rusoto_dynamodb::AttributeValue;
+        use aws_sdk_dynamodb::model::AttributeValue;
         use uuid::Uuid;
 
         use super::*;
@@ -135,39 +138,15 @@ mod tests {
         let mut doc = HashMap::new();
         doc.insert(
             "AccountId".to_string(),
-            AttributeValue {
-                s: Some(Uuid::nil().to_hyphenated().to_string()),
-                ..AttributeValue::default()
-            },
+            AttributeValue::S(Uuid::nil().to_hyphenated().to_string()),
         );
         doc.insert(
             "Email".to_string(),
-            AttributeValue {
-                s: Some("john.doe@example.com".to_string()),
-                ..AttributeValue::default()
-            },
+            AttributeValue::S("john.doe@example.com".to_string()),
         );
-        doc.insert(
-            "FirstName".to_string(),
-            AttributeValue {
-                s: Some("John".to_string()),
-                ..AttributeValue::default()
-            },
-        );
-        doc.insert(
-            "LastName".to_string(),
-            AttributeValue {
-                s: Some("Doe".to_string()),
-                ..AttributeValue::default()
-            },
-        );
-        doc.insert(
-            "Discoverable".to_string(),
-            AttributeValue {
-                bool: Some(true),
-                ..AttributeValue::default()
-            },
-        );
+        doc.insert("FirstName".to_string(), AttributeValue::S("John".to_string()));
+        doc.insert("LastName".to_string(), AttributeValue::S("Doe".to_string()));
+        doc.insert("Discoverable".to_string(), AttributeValue::Bool(true));
 
         let expected = UserAccount {
             account_id: Uuid::nil(),
@@ -178,7 +157,7 @@ mod tests {
             discoverable: true,
             ..Default::default()
         };
-        let actual = serde_dynamodb::from_hashmap::<UserAccount, _>(doc).unwrap();
+        let actual = serde_ddb::from_hashmap::<UserAccount, _>(doc).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -198,9 +177,9 @@ mod tests {
             discoverable: false,
             ..Default::default()
         };
-        let serialized = serde_dynamodb::to_hashmap(&account).unwrap();
+        let serialized = serde_ddb::to_hashmap(&account).unwrap();
         let serialized_password_attr = serialized.get(&"Password".to_string()).unwrap();
-        assert_eq!(true, serialized_password_attr.b.is_some());
-        assert_eq!(true, serialized_password_attr.s.is_none());
+        assert!(serialized_password_attr.is_bs());
+        assert!(!serialized_password_attr.is_s());
     }
 }

@@ -11,6 +11,7 @@ use crate::integration::identity_service::client::ListAccountsInput;
 use crate::integration::identity_service::schema::UserAccount;
 
 #[tokio::main]
+#[allow(deprecated)]
 async fn main() -> std::io::Result<()> {
     let schema = create_schema_with_context();
 

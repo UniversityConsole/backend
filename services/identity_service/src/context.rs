@@ -46,6 +46,6 @@ impl Context {
     }
 
     pub fn key(key: &ContextKey) -> Option<String> {
-        env::var(key.to_string().to_owned()).ok()
+        env::var(&key.to_string()).ok()
     }
 }

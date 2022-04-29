@@ -1,4 +1,4 @@
-#![feature(never_type)]
+#![feature(never_type, let_else)]
 
 mod context;
 mod operations;

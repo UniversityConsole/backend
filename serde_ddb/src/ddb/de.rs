@@ -303,13 +303,13 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
         let read = match list {
             AttributeValue::L(alist) => VecRead { vec: alist },
             AttributeValue::Ns(numlist) => VecRead {
-                vec: numlist.into_iter().map(|n| AttributeValue::N(n)).collect(),
+                vec: numlist.into_iter().map(AttributeValue::N).collect(),
             },
             AttributeValue::Ss(slist) => VecRead {
-                vec: slist.into_iter().map(|s| AttributeValue::S(s)).collect(),
+                vec: slist.into_iter().map(AttributeValue::S).collect(),
             },
             AttributeValue::Bs(blist) => VecRead {
-                vec: blist.into_iter().map(|s| AttributeValue::B(s)).collect(),
+                vec: blist.into_iter().map(AttributeValue::B).collect(),
             },
             _ => {
                 return Err(Error {
@@ -500,7 +500,7 @@ impl<'de, 'a, R: Read> serde::de::Deserializer<'de> for &'a mut Deserializer<R> 
                 }),
             )
         };
-        let mut des = Deserializer::new(HashMapRead::new(values.unwrap_or_else(HashMap::new)));
+        let mut des = Deserializer::new(HashMapRead::new(values.unwrap_or_default()));
         visitor.visit_enum(EnumAccess::new(&mut des, variant))
     }
 

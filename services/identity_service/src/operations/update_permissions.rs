@@ -1,30 +1,23 @@
-use aws_sdk_dynamodb::model::{AttributeValue, Select};
+use aws_sdk_dynamodb::model::AttributeValue;
 use common_macros::hash_map;
-use serde::{Deserialize, Serialize};
-use service_core::ddb::query::{Query, QueryInput};
+use service_core::ddb::query::Query;
 use service_core::ddb::update_item::{UpdateItem, UpdateItemInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
+use thiserror::Error;
 use uuid::Uuid;
 
 use crate::svc::{UpdatePermissionsInput, UpdatePermissionsOutput};
 use crate::user_account::PermissionsDocument;
+use crate::utils::account::{account_key_from_id, AccountKeyFromIdError};
 use crate::utils::validation::validate_resource_paths;
 use crate::Context;
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-#[serde(deny_unknown_fields)]
-struct AccountIdIndexProjection {
-    account_id: uuid::Uuid,
-    email: String,
-}
-
 #[non_exhaustive]
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, Error)]
 pub enum UpdatePermissionsError {
     #[error("Account not found.")]
-    NotFoundError,
+    NotFound,
 
     #[error("Resource path {1} in statement {0} is invalid.")]
     InvalidResourcePath(usize, usize),
@@ -37,32 +30,6 @@ pub(crate) async fn update_permissions(
 ) -> Result<UpdatePermissionsOutput, EndpointError<UpdatePermissionsError>> {
     let account_id = Uuid::parse_str(input.account_id.clone().as_mut())
         .map_err(|_| EndpointError::validation("Invalid account ID provided."))?;
-    let query_params = hash_map! {
-        ":uuid".to_string() => AttributeValue::S(account_id.to_hyphenated().to_string()),
-    };
-
-    let query_input = QueryInput::builder()
-        .index_name("AccountIdIndex")
-        .table_name(ctx.accounts_table_name.clone())
-        .key_condition_expression("AccountId = :uuid")
-        .select(Select::AllProjectedAttributes)
-        .expression_attribute_values(Some(query_params))
-        .limit(1)
-        .build();
-    let output = ddb.query(query_input).await.map_err(|e| {
-        log::error!("Failed to query DynamoDB. Original error: {:?}.", e);
-        EndpointError::internal()
-    })?;
-
-    if output.count == 0 {
-        return Err(EndpointError::operation(UpdatePermissionsError::NotFoundError));
-    }
-
-    let items = output.items.unwrap();
-    let item: AccountIdIndexProjection = serde_ddb::from_hashmap(items[0].clone()).unwrap();
-    let key = hash_map! {
-        "Email".to_string() => AttributeValue::S(item.email),
-    };
     let permissions_document: PermissionsDocument = input
         .permissions_document
         .as_ref()
@@ -74,6 +41,12 @@ pub(crate) async fn update_permissions(
         EndpointError::operation(UpdatePermissionsError::InvalidResourcePath(stmt_idx, path_idx))
     })?;
 
+    let key = account_key_from_id(ddb, ctx.accounts_table_name.as_ref(), &account_id)
+        .await
+        .map_err(|e| match e {
+            AccountKeyFromIdError::AccountNotFound => EndpointError::operation(UpdatePermissionsError::NotFound),
+            _ => EndpointError::internal(),
+        })?;
     let update_item_input = UpdateItemInput::builder()
         .table_name(ctx.accounts_table_name.clone())
         .key(key)
@@ -97,7 +70,7 @@ pub(crate) async fn update_permissions(
 impl OperationError for UpdatePermissionsError {
     fn code(&self) -> tonic::Code {
         match self {
-            Self::NotFoundError => tonic::Code::NotFound,
+            Self::NotFound => tonic::Code::NotFound,
             Self::InvalidResourcePath(..) => tonic::Code::InvalidArgument,
         }
     }

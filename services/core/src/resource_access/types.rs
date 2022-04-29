@@ -266,7 +266,7 @@ mod path_tests {
             let node = accounts_segment
                 .fields
                 .get(&Segment::no_args(field))
-                .expect(format!("no {field} field").as_str());
+                .unwrap_or_else(|| panic!("no {field} field"));
 
             assert!(node.fields.is_empty());
         }
