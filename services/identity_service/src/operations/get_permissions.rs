@@ -1,7 +1,6 @@
-
 use serde::{Deserialize, Serialize};
-use service_core::ddb::get_item::{GetItem};
-use service_core::ddb::query::{Query};
+use service_core::ddb::get_item::GetItem;
+use service_core::ddb::query::Query;
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
@@ -46,9 +45,7 @@ pub(crate) async fn get_permissions(
             permissions_document: Some(permissions_document.into()),
         })
         .map_err(|e| match e {
-            GetPermissionsFromDdbError::AccountNotFound(_) => {
-                EndpointError::operation(GetPermissionsError::NotFoundError)
-            }
+            GetPermissionsFromDdbError::AccountNotFound => EndpointError::operation(GetPermissionsError::NotFoundError),
             _ => EndpointError::internal(),
         })
 }

@@ -1,4 +1,5 @@
 #![feature(never_type, let_else)]
+#![allow(dead_code)]
 
 mod context;
 mod operations;

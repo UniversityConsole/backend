@@ -19,7 +19,7 @@ pub struct PolicyStatement {
     pub paths: Vec<PathNode>,
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum AccessKind {
     Query,
     Mutation,
@@ -27,7 +27,7 @@ pub enum AccessKind {
 
 #[derive(Debug, Clone, Default)]
 pub struct PathSet {
-    pub paths: BTreeMap<Segment, PathNode>,
+    pub(crate) paths: BTreeMap<Segment, PathNode>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,6 +62,7 @@ pub enum AppendNodeError {
     CannotAppendToAny,
 }
 
+
 impl PathSet {
     pub fn extend(&mut self, path: impl IntoIterator<Item = Segment>) -> Result<(), AppendNodeError> {
         let mut it = path.into_iter();
@@ -85,11 +86,15 @@ impl PathSet {
 
     pub fn merge_path_set(&mut self, other: PathSet) {
         for other_path in other.into_paths() {
-            match self.paths.try_insert(other_path.segment.clone(), other_path) {
-                Ok(_) => {}
-                Err(OccupiedError { mut entry, value }) => entry.get_mut().merge(value),
-            };
+            self.merge_path_node(other_path);
         }
+    }
+
+    pub fn merge_path_node(&mut self, other: PathNode) {
+        match self.paths.try_insert(other.segment.clone(), other) {
+            Ok(_) => {}
+            Err(OccupiedError { mut entry, value }) => entry.get_mut().merge(value),
+        };
     }
 
     pub fn paths(&self) -> Vec<&PathNode> {
@@ -125,11 +130,6 @@ impl PathNode {
     }
 
     pub fn merge(&mut self, mut other: PathNode) {
-        println!(
-            "self.segment = {:?}, other.segment = {:?}",
-            &self.segment, &other.segment
-        );
-
         if self.fields.contains_key(&Segment::Any) {
             // Merging other path on an any-match segment wouldn't change it's effect.
             return;
@@ -178,6 +178,129 @@ impl Segment {
     }
 }
 
+impl Argument {
+    fn new(name: impl Into<String>, value: ArgumentValue) -> Self {
+        Argument {
+            name: name.into(),
+            value,
+        }
+    }
+}
+
+
+pub trait Superset {
+    fn is_superset_of(&self, other: &Self) -> bool;
+}
+
+
+impl Superset for PathSet {
+    fn is_superset_of(&self, other: &Self) -> bool {
+        if other.paths.len() > self.paths.len() {
+            return false;
+        }
+
+        for l in self.paths.values() {
+            if let Some(r) = other.paths.get(&l.segment) {
+                if !l.is_superset_of(r) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
+}
+
+impl Superset for PathNode {
+    fn is_superset_of(&self, other: &Self) -> bool {
+        if self.fields.contains_key(&Segment::Any) {
+            // An any-match is superset of anything else.
+            return true;
+        }
+
+        if other.fields.contains_key(&Segment::Any) {
+            // Other node has an any-match while self doesn't.
+            return false;
+        }
+
+        if !self.segment.is_superset_of(&other.segment) {
+            return false;
+        }
+
+        for l in self.fields.values() {
+            if let Some(r) = other.fields.get(&l.segment) {
+                if !l.is_superset_of(r) {
+                    println!("returning false in if");
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+}
+
+impl Superset for Segment {
+    fn is_superset_of(&self, other: &Self) -> bool {
+        println!("left = {:?} right = {:?}", &self, &other);
+
+        match (self, other) {
+            (Segment::Any, _) => true,
+            (_, Segment::Any) => false,
+            (Segment::Named(lname, largs), Segment::Named(rname, rargs)) => {
+                if lname != rname {
+                    false
+                } else {
+                    println!("largs = {:?}, rargs = {:?}", &largs, &rargs);
+
+                    match (largs, rargs) {
+                        (None, None) => true,
+                        // Incompatible fields arguments are not comparable.
+                        (Some(_), None) | (None, Some(_)) => false,
+                        (Some(largs), Some(rargs)) => {
+                            for larg in largs.values() {
+                                match rargs.get(&larg.name) {
+                                    // Incompatible fields arguments are not comparable.
+                                    None => return false,
+                                    Some(rarg) => {
+                                        if !larg.is_superset_of(rarg) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+
+                            true
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Superset for Argument {
+    fn is_superset_of(&self, other: &Self) -> bool {
+        if self.name != other.name {
+            panic!("called is_superset_of for arguments with different names");
+        } else {
+            self.value.is_superset_of(&other.value)
+        }
+    }
+}
+
+impl Superset for ArgumentValue {
+    fn is_superset_of(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ArgumentValue::Wildcard, _) => true,
+            _ => self == other,
+        }
+    }
+}
+
+
 impl TryFrom<OperationType> for AccessKind {
     type Error = ();
 
@@ -189,6 +312,7 @@ impl TryFrom<OperationType> for AccessKind {
         }
     }
 }
+
 
 impl Display for PathNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -256,6 +380,7 @@ impl Display for ArgumentValue {
         Ok(())
     }
 }
+
 
 #[cfg(test)]
 mod path_tests {
@@ -536,5 +661,170 @@ mod merge_tests {
         let Some(a) = a.into_paths().first() else { unreachable!() };
 
         assert_eq!(a.to_string(), "a::{a, b, c, d}".to_owned());
+    }
+}
+
+#[cfg(test)]
+mod superset_tests {
+    #![allow(unused_imports)]
+
+    use rstest::rstest;
+
+    use super::*;
+
+    #[rstest]
+    #[case(ArgumentValue::Wildcard, ArgumentValue::Wildcard, true)]
+    #[case(ArgumentValue::Wildcard, ArgumentValue::StringLiteral("abc".to_owned()), true)]
+    #[case(ArgumentValue::Wildcard, ArgumentValue::IntegerLiteral(12), true)]
+    #[case(ArgumentValue::Wildcard, ArgumentValue::BoolLiteral(true), true)]
+    #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::Wildcard, false)]
+    #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::BoolLiteral(true), false)]
+    #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::BoolLiteral(false), true)]
+    fn argument_value(#[case] a: ArgumentValue, #[case] b: ArgumentValue, #[case] expected: bool) {
+        assert_eq!(a.is_superset_of(&b), expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn arguments_with_different_names() {
+        let a = Argument {
+            name: "a".to_string(),
+            value: ArgumentValue::Wildcard,
+        };
+        let b = Argument {
+            name: "b".to_string(),
+            value: ArgumentValue::Wildcard,
+        };
+
+        a.is_superset_of(&b);
+    }
+
+    #[test]
+    fn argument_expected_true() {
+        let a = Argument {
+            name: "a".to_string(),
+            value: ArgumentValue::Wildcard,
+        };
+        let b = Argument {
+            name: "a".to_string(),
+            value: ArgumentValue::Wildcard,
+        };
+
+        assert!(a.is_superset_of(&b));
+    }
+
+    #[rstest]
+    #[case(Segment::Any, Segment::no_args("a"), true)]
+    #[case(Segment::Any, Segment::Any, true)]
+    #[case(Segment::no_args("a"), Segment::Any, false)]
+    #[case(Segment::no_args("a"), Segment::no_args("b"), false)]
+    #[case(Segment::no_args("a"), Segment::no_args("a"), true)]
+    fn segment_simple(#[case] a: Segment, #[case] b: Segment, #[case] expected: bool) {
+        assert_eq!(a.is_superset_of(&b), expected);
+    }
+
+    #[test]
+    fn segments_with_same_arg_names() {
+        let a = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::Wildcard),
+                Argument::new("b", ArgumentValue::Wildcard),
+            ],
+        );
+        let b = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::BoolLiteral(true)),
+                Argument::new("b", ArgumentValue::IntegerLiteral(10)),
+            ],
+        );
+
+        assert!(a.is_superset_of(&b));
+    }
+
+    #[test]
+    fn segment_with_more_args() {
+        let a = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::Wildcard),
+                Argument::new("b", ArgumentValue::Wildcard),
+                Argument::new("c", ArgumentValue::Wildcard),
+            ],
+        );
+        let b = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::BoolLiteral(true)),
+                Argument::new("b", ArgumentValue::IntegerLiteral(10)),
+            ],
+        );
+
+        assert!(!a.is_superset_of(&b));
+        assert!(!b.is_superset_of(&a));
+    }
+
+    #[test]
+    fn segment_with_some_overlapping_args() {
+        let a = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::Wildcard),
+                Argument::new("b", ArgumentValue::Wildcard),
+                Argument::new("c", ArgumentValue::Wildcard),
+            ],
+        );
+        let b = Segment::with_args(
+            "a",
+            [
+                Argument::new("b", ArgumentValue::IntegerLiteral(10)),
+                Argument::new("c", ArgumentValue::BoolLiteral(true)),
+                Argument::new("d", ArgumentValue::BoolLiteral(true)),
+            ],
+        );
+
+        assert!(!a.is_superset_of(&b));
+        assert!(!b.is_superset_of(&a));
+    }
+
+    #[test]
+    fn segment_with_args_vs_no_args() {
+        let a = Segment::with_args(
+            "a",
+            [
+                Argument::new("a", ArgumentValue::Wildcard),
+                Argument::new("b", ArgumentValue::Wildcard),
+                Argument::new("c", ArgumentValue::Wildcard),
+            ],
+        );
+        let b = Segment::no_args("a");
+
+        assert!(!a.is_superset_of(&b));
+        assert!(!b.is_superset_of(&a));
+    }
+
+    #[rstest]
+    #[case("a::b", "a::b", true)]
+    #[case("a::{b, c}", "a::b", true)]
+    #[case("a::{b, c}", "a::{b, c}", true)]
+    #[case("a::*", "a::b", true)]
+    #[case("a::*", "a::{b, c}", true)]
+    #[case("a::*", "a::*", true)]
+    #[case("a::{b::*, c}", "a::*", false)]
+    #[case("a::{b::*, c}", "a::c", true)]
+    #[case("a::{b::*, c}", "a::b::d", true)]
+    #[case("a::b(foo: *)", "a::b", false)]
+    #[case("a::b(foo: *)", "a::b(foo: *)", true)]
+    #[case("a::b(foo: *)", "a::b(foo: \"a\")", true)]
+    #[case("a::b(foo: *)", "a::b(foo: true)", true)]
+    #[case("a::b(foo: *)", "a::b(foo: 10)", true)]
+    #[case("a::b(foo: 10)", "a::b(foo: 10)", true)]
+    fn path_set_simple(#[case] a: &str, #[case] b: &str, #[case] expected: bool) {
+        use crate::resource_access::string_interop::compiler::from_string;
+        let a = from_string(a).expect("failed parsing a");
+        let b = from_string(b).expect("failed parsing b");
+
+        assert_eq!(a.is_superset_of(&b), expected);
     }
 }
