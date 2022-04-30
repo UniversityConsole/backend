@@ -1,4 +1,5 @@
 use std::cmp::PartialEq;
+use std::collections::btree_map::OccupiedError;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
@@ -82,6 +83,15 @@ impl PathSet {
         Ok(())
     }
 
+    pub fn merge_path_set(&mut self, other: PathSet) {
+        for other_path in other.into_paths() {
+            match self.paths.try_insert(other_path.segment.clone(), other_path) {
+                Ok(_) => {}
+                Err(OccupiedError { mut entry, value }) => entry.get_mut().merge(value),
+            };
+        }
+    }
+
     pub fn paths(&self) -> Vec<&PathNode> {
         self.paths.values().collect()
     }
@@ -112,6 +122,38 @@ impl PathNode {
             .fields
             .try_insert(segment.clone(), PathNode::new(segment))
             .map_or_else(|e| e.entry.into_mut(), |v| v))
+    }
+
+    pub fn merge(&mut self, mut other: PathNode) {
+        println!(
+            "self.segment = {:?}, other.segment = {:?}",
+            &self.segment, &other.segment
+        );
+
+        if self.fields.contains_key(&Segment::Any) {
+            // Merging other path on an any-match segment wouldn't change it's effect.
+            return;
+        }
+
+        if other.fields.contains_key(&Segment::Any) && !self.fields.is_empty() {
+            // If we merge an any-match into anything else, it will become an any-match.
+            self.fields.clear();
+            self.fields.append(&mut other.fields);
+            return;
+        }
+
+        if self.fields.is_empty() {
+            self.fields.append(&mut other.fields);
+            return;
+        }
+
+        for a in self.fields.values_mut() {
+            if let Some(b) = other.fields.remove(&a.segment) {
+                a.merge(b)
+            }
+        }
+
+        self.fields.append(&mut other.fields);
     }
 
     pub fn fields(&self) -> Vec<&PathNode> {
@@ -382,5 +424,117 @@ mod string_tests {
         for (path, expected) in std::iter::zip(path_set.paths(), expected_fmt) {
             assert_eq!(path.to_string(), expected.to_owned());
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(unused_must_use)]
+mod merge_tests {
+    use super::*;
+    use crate::resource_access::string_interop::compiler::from_string;
+
+    #[test]
+    fn merge_disjoint() {
+        let mut a = from_string("a::b::c").unwrap();
+        let b = from_string("d::e::f").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 2);
+
+        let rendered_paths: Vec<String> = a.into_paths().into_iter().map(|v| v.to_string()).collect();
+        let expected_paths: Vec<String> = vec!["a::b::c", "d::e::f"].into_iter().map(|v| v.to_string()).collect();
+        assert_eq!(rendered_paths, expected_paths);
+    }
+
+    #[test]
+    fn merge_common_root_disjoint() {
+        let mut a = from_string("a::b::c").unwrap();
+        let b = from_string("a::d::e").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::{b::c, d::e}".to_owned());
+    }
+
+    #[test]
+    fn merge_common_root_into_any_match() {
+        let mut a = from_string("a::*").unwrap();
+        let b = from_string("a::b::c").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::*".to_owned());
+    }
+
+    #[test]
+    fn merge_common_root_any_match_into_fields() {
+        let mut a = from_string("a::{b, c}").unwrap();
+        let b = from_string("a::*").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::*".to_owned());
+    }
+
+    #[test]
+    fn merge_subset_of_children() {
+        let mut a = from_string("a::{b, c}").unwrap();
+        let b = from_string("a::c").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::{b, c}".to_owned());
+    }
+
+    #[test]
+    fn merge_disjoint_children() {
+        let mut a = from_string("a::{b, c}").unwrap();
+        let b = from_string("a::d").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::{b, c, d}".to_owned());
+    }
+
+    #[test]
+    fn merge_intersecting_children() {
+        let mut a = from_string("a::{b, c}").unwrap();
+        let b = from_string("a::{c, d::e}").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::{b, c, d::e}".to_owned());
+    }
+
+    #[test]
+    fn merge_superset_of_children() {
+        let mut a = from_string("a::{b, c}").unwrap();
+        let b = from_string("a::{a, b, c, d}").unwrap();
+
+        a.merge_path_set(b);
+
+        assert_eq!(a.paths().len(), 1);
+        let Some(a) = a.into_paths().first() else { unreachable!() };
+
+        assert_eq!(a.to_string(), "a::{a, b, c, d}".to_owned());
     }
 }

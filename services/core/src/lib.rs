@@ -2,6 +2,8 @@
 #![feature(map_try_insert)]
 #![feature(let_else)]
 
+extern crate core;
+
 pub mod ddb;
 pub mod endpoint_error;
 pub mod operation_error;
