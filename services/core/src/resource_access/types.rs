@@ -3,6 +3,7 @@ use std::collections::btree_map::OccupiedError;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::intrinsics::breakpoint;
 
 use async_graphql_parser::types::OperationType;
 use serde::{Deserialize, Serialize};
@@ -196,11 +197,19 @@ pub trait Superset {
 impl Superset for PathSet {
     fn is_superset_of(&self, other: &Self) -> bool {
         if other.paths.len() > self.paths.len() {
+            println!("other has more paths, early return false");
             return false;
         }
 
-        for l in self.paths.values() {
-            if let Some(r) = other.paths.get(&l.segment) {
+        for r in other.paths.values() {
+            if let Some(l) = self.paths.get(&r.segment) {
+                if !l.is_superset_of(r) {
+                    return false;
+                }
+            } else if let Some(l) = self.paths.values().find(|v| match (&v.segment, &r.segment) {
+                (Segment::Named(lname, ..), Segment::Named(rname, ..)) => lname == rname,
+                _ => unreachable!("should be covered by the if above"),
+            }) {
                 if !l.is_superset_of(r) {
                     return false;
                 }
@@ -229,12 +238,20 @@ impl Superset for PathNode {
             return false;
         }
 
-        for l in self.fields.values() {
-            if let Some(r) = other.fields.get(&l.segment) {
+        for r in other.fields.values() {
+            if let Some(l) = self.fields.get(&r.segment) {
                 if !l.is_superset_of(r) {
-                    println!("returning false in if");
                     return false;
                 }
+            } else if let Some(l) = self.fields.values().find(|v| match (&v.segment, &r.segment) {
+                (Segment::Named(lname, ..), Segment::Named(rname, ..)) => lname == rname,
+                _ => unreachable!("should be covered by the if above"),
+            }) {
+                if !l.is_superset_of(r) {
+                    return false;
+                }
+            } else {
+                return false;
             }
         }
 
@@ -244,8 +261,6 @@ impl Superset for PathNode {
 
 impl Superset for Segment {
     fn is_superset_of(&self, other: &Self) -> bool {
-        println!("left = {:?} right = {:?}", &self, &other);
-
         match (self, other) {
             (Segment::Any, _) => true,
             (_, Segment::Any) => false,
@@ -253,8 +268,6 @@ impl Superset for Segment {
                 if lname != rname {
                     false
                 } else {
-                    println!("largs = {:?}, rargs = {:?}", &largs, &rargs);
-
                     match (largs, rargs) {
                         (None, None) => true,
                         // Incompatible fields arguments are not comparable.
@@ -807,6 +820,7 @@ mod superset_tests {
     #[rstest]
     #[case("a::b", "a::b", true)]
     #[case("a::{b, c}", "a::b", true)]
+    #[case("a::b", "a::{b, c}", false)]
     #[case("a::{b, c}", "a::{b, c}", true)]
     #[case("a::*", "a::b", true)]
     #[case("a::*", "a::{b, c}", true)]
@@ -821,10 +835,37 @@ mod superset_tests {
     #[case("a::b(foo: *)", "a::b(foo: 10)", true)]
     #[case("a::b(foo: 10)", "a::b(foo: 10)", true)]
     fn path_set_simple(#[case] a: &str, #[case] b: &str, #[case] expected: bool) {
+        println!("a = {a}, b = {b}");
+
         use crate::resource_access::string_interop::compiler::from_string;
         let a = from_string(a).expect("failed parsing a");
         let b = from_string(b).expect("failed parsing b");
 
         assert_eq!(a.is_superset_of(&b), expected);
+    }
+
+    #[test]
+    fn multi_root_path_set() {
+        use crate::resource_access::string_interop::compiler::from_string;
+
+        let mut allowed_path_set = PathSet::default();
+        [
+            from_string("foo::*").expect("failed to parse foo::*"),
+            from_string("bar::baz").expect("failed to parse bar::baz"),
+        ]
+        .into_iter()
+        .for_each(|p| allowed_path_set.merge_path_set(p));
+
+        let desired_path_set = from_string("bar::baz").unwrap();
+        assert!(allowed_path_set.is_superset_of(&desired_path_set));
+    }
+
+    #[test]
+    fn segment_fuzzy_match() {
+        use crate::resource_access::string_interop::compiler::from_string;
+
+        let allowed_path_set = from_string("root::{foo(id: *)::id, foo(id: 123)::*}").unwrap();
+        let desired_path_set = from_string("root::foo(id: 456)::id").unwrap();
+        assert!(allowed_path_set.is_superset_of(&desired_path_set));
     }
 }
