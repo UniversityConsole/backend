@@ -54,10 +54,9 @@ pub(crate) async fn authorize(
         EndpointError::internal()
     })?;
     let desired_paths = merge_access_request_paths(access_request);
+    let permission_granted = allowed_paths.is_superset_of(&desired_paths);
 
-    Ok(AuthorizeOutput {
-        permission_granted: allowed_paths.is_superset_of(&desired_paths),
-    })
+    Ok(AuthorizeOutput { permission_granted })
 }
 
 impl OperationError for AuthorizeError {

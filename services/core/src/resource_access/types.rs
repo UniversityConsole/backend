@@ -3,7 +3,6 @@ use std::collections::btree_map::OccupiedError;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::intrinsics::breakpoint;
 
 use async_graphql_parser::types::OperationType;
 use serde::{Deserialize, Serialize};
