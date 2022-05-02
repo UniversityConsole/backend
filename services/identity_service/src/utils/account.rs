@@ -56,7 +56,12 @@ pub async fn account_key_from_id(
         .ok_or(AccountKeyFromIdError::AccountNotFound)?;
     let projection: AccountIdIndexProjection =
         serde_ddb::from_hashmap(item).map_err(|e| AccountKeyFromIdError::Datastore(e.into()))?;
-    Ok(hash_map! {
-        "Email".to_string() => AttributeValue::S(projection.email),
-    })
+    Ok(account_key_from_email(projection.email))
+}
+
+/// Given an email address, creates the map to be used as key to the User Accounts datastore.
+pub fn account_key_from_email(email: String) -> HashMap<String, AttributeValue> {
+    hash_map! {
+        "Email".to_string() => AttributeValue::S(email),
+    }
 }

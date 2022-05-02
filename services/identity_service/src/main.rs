@@ -1,6 +1,8 @@
 #![feature(never_type, let_else)]
 #![allow(dead_code)]
 
+extern crate core;
+
 mod context;
 mod operations;
 mod svc;
@@ -21,6 +23,8 @@ use svc::{CreateAccountInput, CreateAccountOutput, DescribeAccountInput, Describ
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
 
+use crate::operations::authenticate::authenticate;
+
 struct IdentityServiceImpl {
     pub ctx: Context,
 }
@@ -29,9 +33,9 @@ struct IdentityServiceImpl {
 impl IdentityService for IdentityServiceImpl {
     async fn create_account(
         &self,
-        request: Request<CreateAccountInput>,
+        mut request: Request<CreateAccountInput>,
     ) -> Result<Response<CreateAccountOutput>, Status> {
-        create_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+        create_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_mut())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
@@ -79,6 +83,16 @@ impl IdentityService for IdentityServiceImpl {
 
     async fn authorize(&self, request: Request<svc::AuthorizeInput>) -> Result<Response<svc::AuthorizeOutput>, Status> {
         authorize(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
+    }
+
+    async fn authenticate(
+        &self,
+        mut request: Request<svc::AuthenticateInput>,
+    ) -> Result<Response<svc::AuthenticateOutput>, Status> {
+        authenticate(&self.ctx, &self.ctx.dynamodb_adapter, request.get_mut())
             .await
             .map(Response::new)
             .map_err(|err| err.into())

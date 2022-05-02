@@ -1,3 +1,4 @@
+pub mod authenticate;
 pub mod authorize;
 pub mod create_account;
 pub mod describe_account;

@@ -4,9 +4,10 @@ use service_core::ddb::put_item::{PutItem, PutItemInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
+use zeroize::Zeroize;
 
 use crate::svc::{CreateAccountInput, CreateAccountOutput};
-use crate::user_account::{PermissionsDocument, UserAccount};
+use crate::user_account::{hash_password, PermissionsDocument, UserAccount};
 use crate::Context;
 
 #[non_exhaustive]
@@ -19,23 +20,29 @@ pub enum CreateAccountError {
 pub(crate) async fn create_account(
     ctx: &Context,
     ddb: &impl PutItem,
-    input: &CreateAccountInput,
+    input: &mut CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
     let account_attributes = input
         .account_attributes
-        .as_ref()
+        .as_mut()
         .ok_or_else(|| EndpointError::validation("Account attributes missing."))?;
 
     if account_attributes.password.is_empty() {
         return Err(EndpointError::validation("Password is required."));
     }
 
+    let password = hash_password(&account_attributes.password).map_err(|e| {
+        log::error!("Hashing password failed: {:?}", e);
+        EndpointError::internal()
+    })?;
+    account_attributes.password.zeroize();
+
     let account = UserAccount {
         account_id: Uuid::new_v4(),
         email: account_attributes.email.clone(),
         first_name: account_attributes.first_name.clone(),
         last_name: account_attributes.last_name.clone(),
-        password: account_attributes.password.clone(),
+        password,
         discoverable: account_attributes.discoverable,
         permissions_document: PermissionsDocument::default(),
     };

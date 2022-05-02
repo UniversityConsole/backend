@@ -7,11 +7,15 @@ use service_core::ddb::Adapter;
 pub(crate) enum ContextKey {
     DynamoDbEndpoint,
     AccountsTableName,
+    AccessTokenSecret,
+    RefreshTokenSecret,
 }
 
 pub(crate) struct Context {
     pub dynamodb_adapter: Adapter,
     pub accounts_table_name: String,
+    pub access_token_secret: String,
+    pub refresh_token_secret: String,
 }
 
 impl fmt::Display for ContextKey {
@@ -19,6 +23,8 @@ impl fmt::Display for ContextKey {
         match *self {
             Self::DynamoDbEndpoint => write!(f, "DYNAMODB_ENDPOINT"),
             Self::AccountsTableName => write!(f, "ACCOUNTS_TABLE_NAME"),
+            Self::AccessTokenSecret => write!(f, "ACCESS_TOKEN_SECRET"),
+            Self::RefreshTokenSecret => write!(f, "REFRESH_TOKEN_SECRET"),
         }
     }
 }
@@ -42,6 +48,8 @@ impl Context {
         Context {
             dynamodb_adapter: client.into(),
             accounts_table_name: Context::key(&ContextKey::AccountsTableName).unwrap(),
+            access_token_secret: Context::key(&ContextKey::AccessTokenSecret).unwrap(),
+            refresh_token_secret: Context::key(&ContextKey::RefreshTokenSecret).unwrap(),
         }
     }
 

@@ -1,10 +1,10 @@
-mod authorization;
 mod integration;
 
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use service_core::resource_access::Authorizer;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
 use crate::integration::identity_service::client::ListAccountsInput;
@@ -52,7 +52,7 @@ async fn index_playground() -> HttpResponse {
 
 pub fn create_schema_with_context() -> Schema<Query, EmptyMutation, EmptySubscription> {
     Schema::build(Query, EmptyMutation, EmptySubscription)
-        .extension(authorization::Authorizer)
+        .extension(Authorizer)
         .finish()
 }
 
