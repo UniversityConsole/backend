@@ -1,6 +1,4 @@
-use std::collections::hash_map::RandomState;
-
-use aws_sdk_dynamodb::Endpoint;
+use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
 use service_core::endpoint_error::EndpointError;
@@ -11,8 +9,8 @@ use zeroize::Zeroize;
 
 use crate::svc::{AuthenticateInput, AuthenticateOutput};
 use crate::user_account::{verify_password, UserAccount};
-use crate::utils::account::{account_key_from_email, AccountKeyFromIdError};
-use crate::Context;
+use crate::utils::account::account_key_from_email;
+use crate::{Context, MemcacheConnPool};
 
 #[non_exhaustive]
 #[derive(Error, Debug)]
@@ -27,6 +25,7 @@ pub enum AuthenticateError {
 pub(crate) async fn authenticate(
     ctx: &Context,
     ddb: &(impl GetItem + Query),
+    refresh_token_cache: &MemcacheConnPool,
     input: &mut AuthenticateInput,
 ) -> Result<AuthenticateOutput, EndpointError<AuthenticateError>> {
     let fields = [
@@ -71,12 +70,16 @@ pub(crate) async fn authenticate(
         }
     })?;
 
-    let access_token = create_access_token(ctx, user_account).map_err(|e| {
+    let refresh_token = create_refresh_token(&ctx, &refresh_token_cache, &user_account.account_id);
+    let access_token = create_access_token(&ctx, user_account).map_err(|e| {
         log::error!("Failed encoding the JWT access token: {:?}", e);
         EndpointError::internal()
     })?;
 
-    Ok(AuthenticateOutput { access_token })
+    Ok(AuthenticateOutput {
+        access_token,
+        refresh_token: refresh_token.to_hyphenated().to_string(),
+    })
 }
 
 impl OperationError for AuthenticateError {
@@ -104,4 +107,15 @@ fn create_access_token(ctx: &Context, user_account: UserAccount) -> jsonwebtoken
         &claims,
         &EncodingKey::from_base64_secret(ctx.access_token_secret.as_ref())?,
     )
+}
+
+fn create_refresh_token(ctx: &Context, refresh_token_cache: &MemcacheConnPool, account_id: &Uuid) -> Uuid {
+    let client = Client::with_pool(refresh_token_cache.clone()).unwrap();
+    let token = Uuid::new_v4();
+    let ttl = chrono::Duration::hours(10).num_seconds();
+    client
+        .set(token.to_string().as_str(), account_id.as_bytes().as_slice(), ttl as u32)
+        .unwrap();
+
+    token
 }

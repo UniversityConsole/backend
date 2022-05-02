@@ -4,18 +4,22 @@ use std::str::FromStr;
 
 use service_core::ddb::Adapter;
 
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum ContextKey {
     DynamoDbEndpoint,
     AccountsTableName,
     AccessTokenSecret,
     RefreshTokenSecret,
+    RefreshTokenCache,
 }
 
+#[derive(Debug)]
 pub(crate) struct Context {
     pub dynamodb_adapter: Adapter,
     pub accounts_table_name: String,
     pub access_token_secret: String,
     pub refresh_token_secret: String,
+    pub refresh_token_cache: String,
 }
 
 impl fmt::Display for ContextKey {
@@ -25,6 +29,7 @@ impl fmt::Display for ContextKey {
             Self::AccountsTableName => write!(f, "ACCOUNTS_TABLE_NAME"),
             Self::AccessTokenSecret => write!(f, "ACCESS_TOKEN_SECRET"),
             Self::RefreshTokenSecret => write!(f, "REFRESH_TOKEN_SECRET"),
+            Self::RefreshTokenCache => write!(f, "REFRESH_TOKEN_CACHE"),
         }
     }
 }
@@ -50,6 +55,7 @@ impl Context {
             accounts_table_name: Context::key(&ContextKey::AccountsTableName).unwrap(),
             access_token_secret: Context::key(&ContextKey::AccessTokenSecret).unwrap(),
             refresh_token_secret: Context::key(&ContextKey::RefreshTokenSecret).unwrap(),
+            refresh_token_cache: Context::key(&ContextKey::RefreshTokenCache).unwrap(),
         }
     }
 

@@ -118,4 +118,5 @@ message AuthenticateInput {
 
 message AuthenticateOutput {
     string access_token = 1;
+    string refresh_token = 2;
 }

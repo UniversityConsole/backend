@@ -27,6 +27,9 @@ jsonwebtoken = "8.1.0"
 argon2 = "0.4"
 rand_core = { version = "0.6", features = ["std"] }
 zeroize = "1.5"
+memcache = "0.16.0"
+chrono = "0.4.19"
+r2d2 = "0.8.9"
 
 [build-dependencies]
 tonic-build = "0.6.0"
