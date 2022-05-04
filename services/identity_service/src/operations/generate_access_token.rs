@@ -8,42 +8,58 @@ use uuid::Uuid;
 use validator::validate_email;
 use zeroize::Zeroize;
 
-use crate::svc::{AuthenticateInput, AuthenticateOutput};
+use crate::svc::{GenerateAccessTokenInput, GenerateAccessTokenOutput};
 use crate::user_account::{verify_password, UserAccount};
-use crate::utils::account::account_key_from_email;
+use crate::utils::account::{account_key_from_email, account_key_from_id, AccountKeyFromIdError};
 use crate::{Context, MemcacheConnPool};
 
 #[non_exhaustive]
 #[derive(Error, Debug)]
-pub enum AuthenticateError {
+pub enum GenerateAccessTokenError {
+    #[error("Permission denied.")]
+    PermissionDenied,
+
     #[error("Account not found.")]
     AccountNotFound,
-
-    #[error("Provided credentials are invalid.")]
-    InvalidCredentials,
 }
 
-pub(crate) async fn authenticate(
+pub(crate) async fn generate_access_token(
     ctx: &Context,
     ddb: &(impl GetItem + Query),
     refresh_token_cache: &MemcacheConnPool,
-    input: &mut AuthenticateInput,
-) -> Result<AuthenticateOutput, EndpointError<AuthenticateError>> {
-    if !validate_email(&input.email) {
-        return Err(EndpointError::validation("Email address is invalid."));
+    input: &mut GenerateAccessTokenInput,
+) -> Result<GenerateAccessTokenOutput, EndpointError<GenerateAccessTokenError>> {
+    let account_id =
+        Uuid::parse_str(input.account_id.as_ref()).map_err(|_| EndpointError::validation("Invalid account ID"))?;
+
+    let client = Client::with_pool(refresh_token_cache.clone()).unwrap();
+    let token_owner: Vec<u8> = client
+        .get(input.refresh_token.as_ref())
+        .map_err(|e| {
+            log::error!("Memcache GET failed: {:?}", e);
+            EndpointError::internal()
+        })?
+        .ok_or_else(|| EndpointError::operation(GenerateAccessTokenError::PermissionDenied))?;
+    client.delete(input.refresh_token.as_ref()).map_err(|e| {
+        log::error!("Memcache DELETE failed: {:?}", e);
+        EndpointError::internal()
+    })?;
+    if token_owner.as_slice() != account_id.as_bytes().as_slice() {
+        return Err(EndpointError::operation(GenerateAccessTokenError::PermissionDenied));
     }
 
-    let fields = [
-        "AccountId",
-        "Email",
-        "FirstName",
-        "Discoverable",
-        "LastName",
-        "Password",
-    ];
+    let fields = ["AccountId", "Email", "FirstName", "Discoverable", "LastName"];
+    let key = account_key_from_id(ddb, ctx.accounts_table_name.as_ref(), &account_id)
+        .await
+        .map_err(|e| match e {
+            AccountKeyFromIdError::AccountNotFound => {
+                EndpointError::operation(GenerateAccessTokenError::AccountNotFound)
+            }
+            AccountKeyFromIdError::Datastore(_) => EndpointError::internal(),
+        })?;
     let get_item_input = GetItemInput::builder()
         .table_name(&ctx.accounts_table_name)
-        .key(account_key_from_email(input.email.clone()))
+        .key(key)
         .consistent_read(true)
         .projection_expression(fields.join(","))
         .build();
@@ -55,23 +71,11 @@ pub(crate) async fn authenticate(
             EndpointError::internal()
         })?
         .item
-        .ok_or_else(|| EndpointError::operation(AuthenticateError::AccountNotFound))?;
+        .ok_or_else(|| EndpointError::operation(GenerateAccessTokenError::AccountNotFound))?;
 
-    let mut user_account: UserAccount = serde_ddb::from_hashmap(user_account).map_err(|parse_err| {
+    let user_account: UserAccount = serde_ddb::from_hashmap(user_account).map_err(|parse_err| {
         log::error!("Decoding item from datastore failed: {:?}", parse_err);
         EndpointError::internal()
-    })?;
-
-    let pass_verify_result = verify_password(&input.password, &user_account.password);
-    user_account.password.zeroize();
-
-    use argon2::password_hash::Error::Password as PasswordErr;
-    pass_verify_result.map_err(|e| match e {
-        PasswordErr => EndpointError::operation(AuthenticateError::InvalidCredentials),
-        _ => {
-            log::error!("Password verification failed: {:?}", e);
-            EndpointError::internal()
-        }
     })?;
 
     let refresh_token = create_refresh_token(&refresh_token_cache, &user_account.account_id);
@@ -80,22 +84,23 @@ pub(crate) async fn authenticate(
         EndpointError::internal()
     })?;
 
-    Ok(AuthenticateOutput {
+
+    Ok(GenerateAccessTokenOutput {
         access_token,
         refresh_token: refresh_token.to_hyphenated().to_string(),
     })
 }
 
-impl OperationError for AuthenticateError {
+impl OperationError for GenerateAccessTokenError {
     fn code(&self) -> tonic::Code {
         match self {
+            Self::PermissionDenied => tonic::Code::PermissionDenied,
             Self::AccountNotFound => tonic::Code::NotFound,
-            Self::InvalidCredentials => tonic::Code::InvalidArgument,
         }
     }
 }
 
-pub(crate) fn create_access_token(ctx: &Context, user_account: UserAccount) -> jsonwebtoken::errors::Result<String> {
+fn create_access_token(ctx: &Context, user_account: UserAccount) -> jsonwebtoken::errors::Result<String> {
     use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
     use service_core::auth::jwt::Claims;
 
@@ -113,7 +118,7 @@ pub(crate) fn create_access_token(ctx: &Context, user_account: UserAccount) -> j
     )
 }
 
-pub(crate) fn create_refresh_token(refresh_token_cache: &MemcacheConnPool, account_id: &Uuid) -> Uuid {
+fn create_refresh_token(refresh_token_cache: &MemcacheConnPool, account_id: &Uuid) -> Uuid {
     let client = Client::with_pool(refresh_token_cache.clone()).unwrap();
     let token = Uuid::new_v4();
     let ttl = chrono::Duration::hours(10).num_seconds();

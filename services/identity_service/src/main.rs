@@ -27,6 +27,7 @@ use tonic::{Request, Response, Status};
 
 use crate::context::ContextKey;
 use crate::operations::authenticate::authenticate;
+use crate::operations::generate_access_token::generate_access_token;
 use crate::utils::memcache::MemcacheConnPool;
 
 struct IdentityServiceImpl {
@@ -125,6 +126,21 @@ impl IdentityService for IdentityServiceImpl {
         mut request: Request<svc::AuthenticateInput>,
     ) -> Result<Response<svc::AuthenticateOutput>, Status> {
         authenticate(
+            &self.ctx,
+            &self.ctx.dynamodb_adapter,
+            &self.refresh_token_cache,
+            request.get_mut(),
+        )
+        .await
+        .map(Response::new)
+        .map_err(|err| err.into())
+    }
+
+    async fn generate_access_token(
+        &self,
+        mut request: Request<svc::GenerateAccessTokenInput>,
+    ) -> Result<Response<svc::GenerateAccessTokenOutput>, Status> {
+        generate_access_token(
             &self.ctx,
             &self.ctx.dynamodb_adapter,
             &self.refresh_token_cache,

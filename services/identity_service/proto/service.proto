@@ -12,6 +12,7 @@ service IdentityService {
     rpc GetPermissions(GetPermissionsInput) returns (GetPermissionsOutput);
     rpc Authorize(AuthorizeInput) returns (AuthorizeOutput);
     rpc Authenticate(AuthenticateInput) returns (AuthenticateOutput);
+    rpc GenerateAccessToken(GenerateAccessTokenInput) returns (GenerateAccessTokenOutput);
 }
 
 
@@ -117,6 +118,16 @@ message AuthenticateInput {
 }
 
 message AuthenticateOutput {
+    string access_token = 1;
+    string refresh_token = 2;
+}
+
+message GenerateAccessTokenInput {
+    string account_id = 1;
+    string refresh_token = 2;
+}
+
+message GenerateAccessTokenOutput {
     string access_token = 1;
     string refresh_token = 2;
 }
