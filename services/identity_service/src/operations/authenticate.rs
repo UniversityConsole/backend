@@ -5,6 +5,7 @@ use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use thiserror::Error;
 use uuid::Uuid;
+use validator::validate_email;
 use zeroize::Zeroize;
 
 use crate::svc::{AuthenticateInput, AuthenticateOutput};
@@ -28,6 +29,10 @@ pub(crate) async fn authenticate(
     refresh_token_cache: &MemcacheConnPool,
     input: &mut AuthenticateInput,
 ) -> Result<AuthenticateOutput, EndpointError<AuthenticateError>> {
+    if !validate_email(&input.email) {
+        return Err(EndpointError::validation("Email address is invalid."));
+    }
+
     let fields = [
         "AccountId",
         "Email",
@@ -38,7 +43,6 @@ pub(crate) async fn authenticate(
     ];
     let get_item_input = GetItemInput::builder()
         .table_name(&ctx.accounts_table_name)
-        // FIXME Add validation on the email.
         .key(account_key_from_email(input.email.clone()))
         .consistent_read(true)
         .projection_expression(fields.join(","))

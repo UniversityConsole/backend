@@ -4,6 +4,7 @@ use service_core::ddb::put_item::{PutItem, PutItemInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
+use validator::validate_email;
 use zeroize::Zeroize;
 
 use crate::svc::{CreateAccountInput, CreateAccountOutput};
@@ -26,6 +27,10 @@ pub(crate) async fn create_account(
         .account_attributes
         .as_mut()
         .ok_or_else(|| EndpointError::validation("Account attributes missing."))?;
+
+    if !validate_email(&account_attributes.email) {
+        return Err(EndpointError::validation("Email address is invalid."));
+    }
 
     if account_attributes.password.is_empty() {
         return Err(EndpointError::validation("Password is required."));
