@@ -1,4 +1,4 @@
-use async_graphql::{Object, ID};
+use async_graphql::{Object, SimpleObject, ID};
 
 #[derive(Clone)]
 pub struct UserAccount {
@@ -25,4 +25,10 @@ impl UserAccount {
     async fn last_name(&self) -> &String {
         &self.last_name
     }
+}
+
+#[derive(Clone, SimpleObject)]
+pub struct AuthenticationOutput {
+    pub access_token: String,
+    pub refresh_token: String,
 }

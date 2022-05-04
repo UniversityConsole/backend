@@ -4,16 +4,24 @@ use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use log::LevelFilter;
 use service_core::resource_access::Authorizer;
+use simple_logger::SimpleLogger;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
-use crate::integration::identity_service::client::ListAccountsInput;
-use crate::integration::identity_service::schema::UserAccount;
+use crate::integration::identity_service::client::{AuthenticateInput, ListAccountsInput};
+use crate::integration::identity_service::schema::{AuthenticationOutput, UserAccount};
 
 #[tokio::main]
 #[allow(deprecated)]
 async fn main() -> std::io::Result<()> {
     let schema = create_schema_with_context();
+
+    SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .with_module_level(module_path!(), LevelFilter::Debug)
+        .init()
+        .unwrap();
 
     HttpServer::new(move || App::new().configure(configure_service).data(schema.clone()))
         .bind("0.0.0.0:8001")?
@@ -50,14 +58,15 @@ async fn index_playground() -> HttpResponse {
         ))
 }
 
-pub fn create_schema_with_context() -> Schema<Query, EmptyMutation, EmptySubscription> {
-    Schema::build(Query, EmptyMutation, EmptySubscription)
+pub fn create_schema_with_context() -> AppSchema {
+    Schema::build(Query, Mutation, EmptySubscription)
         .extension(Authorizer)
         .finish()
 }
 
-pub type AppSchema = Schema<Query, EmptyMutation, EmptySubscription>;
+pub type AppSchema = Schema<Query, Mutation, EmptySubscription>;
 pub struct Query;
+pub struct Mutation;
 
 #[Object]
 impl Query {
@@ -93,8 +102,41 @@ impl Query {
     }
 }
 
+#[Object]
+impl Mutation {
+    async fn authenticate(
+        &self,
+        email: String,
+        password: String,
+    ) -> std::result::Result<AuthenticationOutput, AuthenticateError> {
+        let mut identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
+            .await
+            .map_err(|_| AuthenticateError::CannotAcquireClient)?;
+        let request = tonic::Request::new(AuthenticateInput { email, password });
+        let output = identity_service_client
+            .authenticate(request)
+            .await
+            .map_err(|_| AuthenticateError::Operation)?
+            .into_inner();
+
+        Ok(AuthenticationOutput {
+            access_token: output.access_token,
+            refresh_token: output.refresh_token,
+        })
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 enum ListAccountsError {
+    #[error("Cannot acquire IdentityService client.")]
+    CannotAcquireClient,
+
+    #[error("Operation error.")]
+    Operation,
+}
+
+#[derive(thiserror::Error, Debug)]
+enum AuthenticateError {
     #[error("Cannot acquire IdentityService client.")]
     CannotAcquireClient,
 
