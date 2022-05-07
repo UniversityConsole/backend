@@ -1,7 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-
-
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
@@ -18,9 +16,3 @@ impl Default for RequestId {
         Self(Uuid::new_v4())
     }
 }
-
-// impl Value for RequestId {
-//     fn record(&self, key: &Field, visitor: &mut dyn Visit) {
-//         visitor.record_value(key, display(self));
-//     }
-// }
