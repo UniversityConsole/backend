@@ -6,11 +6,11 @@ use std::io;
 use actix_web::middleware::Logger;
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Response, Schema, ServerError};
+use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-use log::LevelFilter;
+
 use service_core::resource_access::Authorizer;
-use simple_logger::SimpleLogger;
+
 use thiserror::Error;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
@@ -18,7 +18,7 @@ use crate::integration::identity_service::client::{AuthenticateInput, GenerateAc
 use crate::integration::identity_service::schema::{
     AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
 };
-use crate::schema::{Authorization, ExtractAuthorizationError};
+use crate::schema::{Authorization};
 
 
 #[tokio::main]

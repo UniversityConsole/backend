@@ -1,4 +1,4 @@
-use chrono::{Duration, Utc};
+
 use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
@@ -6,13 +6,13 @@ use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use thiserror::Error;
 use uuid::Uuid;
-use validator::validate_email;
-use zeroize::Zeroize;
+
+
 
 use crate::operations::authenticate::{create_access_token, create_refresh_token};
 use crate::svc::{GenerateAccessTokenInput, GenerateAccessTokenOutput};
-use crate::user_account::{verify_password, UserAccount};
-use crate::utils::account::{account_key_from_email, account_key_from_id, AccountKeyFromIdError};
+use crate::user_account::{UserAccount};
+use crate::utils::account::{account_key_from_id, AccountKeyFromIdError};
 use crate::{Context, MemcacheConnPool};
 
 #[non_exhaustive]

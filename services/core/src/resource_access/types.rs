@@ -567,7 +567,7 @@ mod string_tests {
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod merge_tests {
-    use super::*;
+    
     use crate::resource_access::string_interop::compiler::from_string;
 
     #[test]
