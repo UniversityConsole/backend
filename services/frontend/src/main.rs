@@ -1,30 +1,49 @@
 mod integration;
 mod schema;
+mod telemetry;
 
 use std::io;
 
 use actix_web::middleware::Logger;
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
+use async_graphql::extensions::Tracing;
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
-
 use service_core::resource_access::Authorizer;
-
 use thiserror::Error;
+use tracing::field::display;
+
+
+
+
+
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
 use crate::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
 use crate::integration::identity_service::schema::{
     AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
 };
-use crate::schema::{Authorization};
+use crate::schema::authorization::Authorization;
+use crate::schema::request_id::RequestId;
+use crate::telemetry::logging::{init_subscriber, make_subscriber};
+
+
+#[derive(Debug, Error)]
+pub enum InitServiceError {
+    #[error("Cannot acquire client.")]
+    CannotAcquireClient,
+
+    #[error(transparent)]
+    IO(#[from] io::Error),
+}
 
 
 #[tokio::main]
 #[allow(deprecated)]
 async fn main() -> std::result::Result<(), InitServiceError> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let subscriber = make_subscriber("frontend", "info");
+    init_subscriber(subscriber);
 
     let schema = create_schema_with_context().await?;
 
@@ -40,14 +59,6 @@ async fn main() -> std::result::Result<(), InitServiceError> {
     .map_err(|e| e.into())
 }
 
-#[derive(Debug, Error)]
-pub enum InitServiceError {
-    #[error("Cannot acquire client.")]
-    CannotAcquireClient,
-
-    #[error(transparent)]
-    IO(#[from] io::Error),
-}
 
 pub fn configure_service(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -58,10 +69,14 @@ pub fn configure_service(cfg: &mut web::ServiceConfig) {
     );
 }
 
+#[tracing::instrument(skip_all, fields(request_id))]
 async fn index(schema: web::Data<AppSchema>, http_req: HttpRequest, req: GraphQLRequest) -> GraphQLResponse {
+    let request_id = RequestId::default();
+    tracing::Span::current().record("request_id", &display(&request_id));
+
     let authorization = match Authorization::try_from_req(&http_req) {
         Err(e) => {
-            log::debug!("Cannot extract authorization data: {}", e);
+            tracing::debug!("Cannot extract authorization data: {}", e);
 
             let permission_denied_error = ServerError::new("Permission denied.", None);
             let response = Response::from_errors(vec![permission_denied_error]);
@@ -69,7 +84,7 @@ async fn index(schema: web::Data<AppSchema>, http_req: HttpRequest, req: GraphQL
         }
         Ok(v) => v,
     };
-    let query = req.into_inner().data(authorization);
+    let query = req.into_inner().data(authorization).data(request_id);
     schema.execute(query).await.into()
 }
 
@@ -95,10 +110,11 @@ pub async fn create_schema_with_context() -> std::result::Result<AppSchema, Init
         .await
         .map_err(|_| InitServiceError::CannotAcquireClient)?;
 
-    log::info!("Created IdentityService client.");
+    tracing::info!("Created IdentityService client.");
 
     Ok(Schema::build(Query, Mutation, EmptySubscription)
         .extension(Authorizer)
+        .extension(Tracing)
         .data(identity_service_client)
         .finish())
 }
@@ -109,6 +125,7 @@ pub struct Mutation;
 
 #[Object]
 impl Query {
+    #[tracing::instrument(skip_all)]
     async fn accounts<'a>(&self, ctx: &Context<'a>) -> std::result::Result<Vec<UserAccount>, ListAccountsError> {
         let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
         let request = tonic::Request::new(ListAccountsInput {
@@ -119,7 +136,10 @@ impl Query {
         let output = identity_service_client
             .list_accounts(request)
             .await
-            .map_err(|_| ListAccountsError::Operation)?
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Error calling ListAccounts.");
+                ListAccountsError::Operation
+            })?
             .into_inner();
 
         Ok(output
@@ -132,10 +152,6 @@ impl Query {
                 last_name: account.last_name,
             })
             .collect())
-    }
-
-    async fn api_version(&self, _ctx: &Context<'_>) -> u32 {
-        1
     }
 }
 
