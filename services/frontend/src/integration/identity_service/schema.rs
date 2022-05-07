@@ -1,5 +1,9 @@
-use async_graphql::{Object, SimpleObject, ID};
+use async_graphql::{Context, Enum, Object, SimpleObject, ID};
 use thiserror::Error;
+use tracing_futures::Instrument;
+
+use crate::integration::identity_service::client::GetPermissionsInput;
+use crate::integration::identity_service::IdentityServiceRef;
 
 #[derive(Clone)]
 pub struct UserAccount {
@@ -9,23 +13,16 @@ pub struct UserAccount {
     pub last_name: String,
 }
 
-#[Object]
-impl UserAccount {
-    async fn account_id(&self) -> &ID {
-        &self.account_id
-    }
+#[derive(Clone, SimpleObject)]
+pub struct RenderedPolicyStatement {
+    pub access_kind: AccessKind,
+    pub paths: Vec<String>,
+}
 
-    async fn email(&self) -> &String {
-        &self.email
-    }
-
-    async fn first_name(&self) -> &String {
-        &self.first_name
-    }
-
-    async fn last_name(&self) -> &String {
-        &self.last_name
-    }
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum AccessKind {
+    Query,
+    Mutation,
 }
 
 #[derive(Clone, SimpleObject)]
@@ -45,6 +42,68 @@ pub enum GraphQLError {
     #[error("Permission denied.")]
     PermissionDenied,
 
+    #[error("An internal error occurred.")]
+    Internal,
+
     #[error(transparent)]
     Operation(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
+
+#[Object]
+impl UserAccount {
+    async fn account_id(&self) -> &ID {
+        &self.account_id
+    }
+
+    async fn email(&self) -> &String {
+        &self.email
+    }
+
+    async fn first_name(&self) -> &String {
+        &self.first_name
+    }
+
+    async fn last_name(&self) -> &String {
+        &self.last_name
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn policy_statements(&self, ctx: &Context<'_>) -> Result<Vec<RenderedPolicyStatement>, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let request = tonic::Request::new(GetPermissionsInput {
+            account_id: self.account_id.to_string(),
+        });
+        let output = identity_service_client
+            .get_permissions(request)
+            .instrument(tracing::info_span!("identity_service::get_permissions"))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?&e, "GetPermissions failed.");
+                GraphQLError::Operation(e.into())
+            })?
+            .into_inner();
+
+        let statements = output
+            .permissions_document
+            .map(|doc| doc.statements.into_iter())
+            .ok_or(GraphQLError::Internal)?;
+
+
+        Ok(statements
+            .map(|stmt| {
+                use crate::integration::identity_service::client::policy_statement::AccessKind as ProtobufAccessKind;
+                let access_kind = if stmt.access_kind == ProtobufAccessKind::Mutation as i32 {
+                    AccessKind::Mutation
+                } else {
+                    AccessKind::Query
+                };
+
+                RenderedPolicyStatement {
+                    paths: stmt.paths,
+                    access_kind,
+                }
+            })
+            .collect())
+    }
 }

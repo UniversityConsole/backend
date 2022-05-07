@@ -1,16 +1,20 @@
+use std::fs::File;
 use std::io;
 
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::extensions::Tracing;
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError};
+use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError, ID};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
 use frontend::integration::identity_service::client::identity_service_client::IdentityServiceClient;
-use frontend::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
+use frontend::integration::identity_service::client::{
+    AuthenticateInput, DescribeAccountInput, GenerateAccessTokenInput, ListAccountsInput,
+};
 use frontend::integration::identity_service::schema::{
     AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
 };
+use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
 use service_core::resource_access::Authorizer;
 use service_core::simple_err_map;
@@ -90,8 +94,7 @@ async fn index_playground() -> HttpResponse {
         ))
 }
 
-type IdentityServiceRef = IdentityServiceClient<tonic::transport::Channel>;
-
+#[tracing::instrument]
 pub async fn create_schema_with_context() -> std::result::Result<AppSchema, InitServiceError> {
     let identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
         .await
@@ -99,11 +102,18 @@ pub async fn create_schema_with_context() -> std::result::Result<AppSchema, Init
 
     tracing::info!("Created IdentityService client.");
 
-    Ok(Schema::build(Query, Mutation, EmptySubscription)
+    let schema = Schema::build(Query, Mutation, EmptySubscription)
         .extension(Authorizer)
         .extension(Tracing)
         .data(identity_service_client)
-        .finish())
+        .finish();
+
+    use std::io::Write;
+    let path = "schema";
+    let mut output = File::create(path).expect("failed creating schema file");
+    write!(output, "{}", &schema.sdl()).expect("failed writing schema");
+
+    Ok(schema)
 }
 
 pub type AppSchema = Schema<Query, Mutation, EmptySubscription>;
@@ -137,6 +147,31 @@ impl Query {
                 last_name: account.last_name,
             })
             .collect())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn account(&self, ctx: &Context<'_>, id: ID) -> std::result::Result<UserAccount, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let request = tonic::Request::new(DescribeAccountInput { account_id: id.into() });
+        let output = identity_service_client
+            .describe_account(request)
+            .instrument(tracing::info_span!("identity_service::describe_account"))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?&e, "DescribeAccount failed.");
+                GraphQLError::Operation(e.into())
+            })?
+            .into_inner();
+
+        Ok(output
+            .account
+            .map(|account| UserAccount {
+                account_id: account.account_id.into(),
+                email: account.email,
+                first_name: account.first_name,
+                last_name: account.last_name,
+            })
+            .expect("malformed response"))
     }
 }
 
