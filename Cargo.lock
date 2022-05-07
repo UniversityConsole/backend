@@ -1300,7 +1300,6 @@ dependencies = [
  "tonic",
  "tonic-build",
  "tracing",
- "tracing-bunyan-formatter",
  "tracing-futures",
  "tracing-log",
  "tracing-subscriber",
@@ -2667,7 +2666,13 @@ dependencies = [
  "serde",
  "thiserror",
  "tonic",
+ "tracing",
+ "tracing-bunyan-formatter",
+ "tracing-futures",
+ "tracing-log",
+ "tracing-subscriber",
  "typed-builder",
+ "uuid 1.0.0",
 ]
 
 [[package]]

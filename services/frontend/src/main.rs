@@ -1,6 +1,5 @@
 mod integration;
 mod schema;
-mod telemetry;
 
 use std::io;
 
@@ -11,6 +10,9 @@ use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use service_core::resource_access::Authorizer;
+use service_core::simple_err_map;
+use service_core::telemetry::logging::{init_subscriber, make_subscriber};
+use service_core::telemetry::request_id::RequestId;
 use thiserror::Error;
 use tracing::field::display;
 use tracing_futures::Instrument;
@@ -21,8 +23,6 @@ use crate::integration::identity_service::schema::{
     AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
 };
 use crate::schema::authorization::Authorization;
-use crate::schema::request_id::RequestId;
-use crate::telemetry::logging::{init_subscriber, make_subscriber};
 
 
 #[derive(Debug, Error)]
