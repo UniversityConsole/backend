@@ -5,12 +5,12 @@ use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation};
 use service_core::auth::jwt::Claims;
 use thiserror::Error;
 
-pub(crate) struct Authorization {
+pub struct Authorization {
     pub claims: Claims,
 }
 
 #[derive(Debug, Error)]
-pub(crate) enum ExtractAuthorizationError {
+pub enum ExtractAuthorizationError {
     #[error("Service has invalid secret.")]
     InvalidSecret,
 

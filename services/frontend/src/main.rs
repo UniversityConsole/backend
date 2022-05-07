@@ -1,29 +1,22 @@
-mod integration;
-mod schema;
-
 use std::io;
 
-use actix_web::middleware::Logger;
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::extensions::Tracing;
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
+use frontend::actix_middleware::request_id::RequestIdHeader;
+use frontend::integration::identity_service::client::identity_service_client::IdentityServiceClient;
+use frontend::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
+use frontend::integration::identity_service::schema::{
+    AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
+};
+use frontend::schema::authorization::Authorization;
 use service_core::resource_access::Authorizer;
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
-use service_core::telemetry::request_id::RequestId;
 use thiserror::Error;
-use tracing::field::display;
 use tracing_futures::Instrument;
-
-use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
-use crate::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
-use crate::integration::identity_service::schema::{
-    AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
-};
-use crate::schema::authorization::Authorization;
-
 
 #[derive(Debug, Error)]
 pub enum InitServiceError {
@@ -45,7 +38,8 @@ async fn main() -> std::result::Result<(), InitServiceError> {
 
     HttpServer::new(move || {
         App::new()
-            .wrap(Logger::default())
+            .wrap(RequestIdHeader)
+            .wrap(tracing_actix_web::TracingLogger::default())
             .configure(configure_service)
             .data(schema.clone())
     })
@@ -65,11 +59,8 @@ pub fn configure_service(cfg: &mut web::ServiceConfig) {
     );
 }
 
-#[tracing::instrument(skip_all, fields(request_id))]
+#[tracing::instrument(skip_all)]
 async fn index(schema: web::Data<AppSchema>, http_req: HttpRequest, req: GraphQLRequest) -> GraphQLResponse {
-    let request_id = RequestId::default();
-    tracing::Span::current().record("request_id", &display(&request_id));
-
     let authorization = match Authorization::try_from_req(&http_req) {
         Err(e) => {
             tracing::debug!("Cannot extract authorization data: {}", e);
@@ -80,7 +71,7 @@ async fn index(schema: web::Data<AppSchema>, http_req: HttpRequest, req: GraphQL
         }
         Ok(v) => v,
     };
-    let query = req.into_inner().data(authorization).data(request_id);
+    let query = req.into_inner().data(authorization);
     schema.execute(query).await.into()
 }
 
