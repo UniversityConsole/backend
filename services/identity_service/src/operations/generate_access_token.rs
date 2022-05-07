@@ -1,3 +1,4 @@
+use chrono::{Duration, Utc};
 use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
@@ -8,6 +9,7 @@ use uuid::Uuid;
 use validator::validate_email;
 use zeroize::Zeroize;
 
+use crate::operations::authenticate::{create_access_token, create_refresh_token};
 use crate::svc::{GenerateAccessTokenInput, GenerateAccessTokenOutput};
 use crate::user_account::{verify_password, UserAccount};
 use crate::utils::account::{account_key_from_email, account_key_from_id, AccountKeyFromIdError};
@@ -78,8 +80,8 @@ pub(crate) async fn generate_access_token(
         EndpointError::internal()
     })?;
 
-    let refresh_token = create_refresh_token(&refresh_token_cache, &user_account.account_id);
-    let access_token = create_access_token(&ctx, user_account).map_err(|e| {
+    let refresh_token = create_refresh_token(refresh_token_cache, &user_account.account_id);
+    let access_token = create_access_token(ctx, user_account).map_err(|e| {
         log::error!("Failed encoding the JWT access token: {:?}", e);
         EndpointError::internal()
     })?;
@@ -98,33 +100,4 @@ impl OperationError for GenerateAccessTokenError {
             Self::AccountNotFound => tonic::Code::NotFound,
         }
     }
-}
-
-fn create_access_token(ctx: &Context, user_account: UserAccount) -> jsonwebtoken::errors::Result<String> {
-    use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-    use service_core::auth::jwt::Claims;
-
-    let claims = Claims {
-        sub: user_account.account_id.to_hyphenated().to_string(),
-        email: user_account.email,
-        first_name: user_account.first_name,
-        last_name: user_account.last_name,
-    };
-
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_base64_secret(ctx.access_token_secret.as_ref())?,
-    )
-}
-
-fn create_refresh_token(refresh_token_cache: &MemcacheConnPool, account_id: &Uuid) -> Uuid {
-    let client = Client::with_pool(refresh_token_cache.clone()).unwrap();
-    let token = Uuid::new_v4();
-    let ttl = chrono::Duration::hours(10).num_seconds();
-    client
-        .set(token.to_string().as_str(), account_id.as_bytes().as_slice(), ttl as u32)
-        .unwrap();
-
-    token
 }

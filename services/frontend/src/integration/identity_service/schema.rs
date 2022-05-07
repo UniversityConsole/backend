@@ -1,4 +1,5 @@
 use async_graphql::{Object, SimpleObject, ID};
+use thiserror::Error;
 
 #[derive(Clone)]
 pub struct UserAccount {
@@ -31,4 +32,19 @@ impl UserAccount {
 pub struct AuthenticationOutput {
     pub access_token: String,
     pub refresh_token: String,
+}
+
+#[derive(Clone, SimpleObject)]
+pub struct GenerateAccessTokenOutput {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Error)]
+pub enum GraphQLError {
+    #[error("Permission denied.")]
+    PermissionDenied,
+
+    #[error(transparent)]
+    Operation(#[from] Box<dyn std::error::Error + Send + Sync>),
 }

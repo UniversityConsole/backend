@@ -1,3 +1,4 @@
+use chrono::{Duration, Utc};
 use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
@@ -99,15 +100,20 @@ pub(crate) fn create_access_token(ctx: &Context, user_account: UserAccount) -> j
     use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
     use service_core::auth::jwt::Claims;
 
+    let exp = Utc::now()
+        .checked_add_signed(Duration::seconds(60))
+        .expect("valid timestamp")
+        .timestamp();
     let claims = Claims {
         sub: user_account.account_id.to_hyphenated().to_string(),
         email: user_account.email,
         first_name: user_account.first_name,
         last_name: user_account.last_name,
+        exp: exp as usize,
     };
 
     encode(
-        &Header::default(),
+        &Header::new(Algorithm::HS512),
         &claims,
         &EncodingKey::from_base64_secret(ctx.access_token_secret.as_ref())?,
     )
@@ -116,7 +122,7 @@ pub(crate) fn create_access_token(ctx: &Context, user_account: UserAccount) -> j
 pub(crate) fn create_refresh_token(refresh_token_cache: &MemcacheConnPool, account_id: &Uuid) -> Uuid {
     let client = Client::with_pool(refresh_token_cache.clone()).unwrap();
     let token = Uuid::new_v4();
-    let ttl = chrono::Duration::hours(10).num_seconds();
+    let ttl = Duration::hours(10).num_seconds();
     client
         .set(token.to_string().as_str(), account_id.as_bytes().as_slice(), ttl as u32)
         .unwrap();

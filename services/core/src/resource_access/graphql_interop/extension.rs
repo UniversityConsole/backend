@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_graphql::{extensions, ServerError};
+use log::{log_enabled, Level};
 
 use crate::resource_access::graphql_interop::parser::from_document;
 
@@ -31,7 +32,12 @@ impl extensions::Extension for AuthorizerExtension {
             .pop()
             .ok_or_else(|| ServerError::new("No access request was compiled.", None))?;
 
-        println!("access_request: {:?}", access_request);
+        if log_enabled!(Level::Debug) {
+            let access_req_fmt = access_request.paths.iter().fold(String::new(), |b, v| {
+                format!("{b}{}{v}", if b.is_empty() { "" } else { ", " })
+            });
+            log::debug!("access_request = {:?}", access_req_fmt);
+        }
 
         next.run(ctx, query, variables).await
     }

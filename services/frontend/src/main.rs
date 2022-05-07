@@ -1,32 +1,52 @@
 mod integration;
+mod schema;
 
+use std::io;
+
+use actix_web::middleware::Logger;
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
+use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Response, Schema, ServerError};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use log::LevelFilter;
 use service_core::resource_access::Authorizer;
 use simple_logger::SimpleLogger;
+use thiserror::Error;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
-use crate::integration::identity_service::client::{AuthenticateInput, ListAccountsInput};
-use crate::integration::identity_service::schema::{AuthenticationOutput, UserAccount};
+use crate::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
+use crate::integration::identity_service::schema::{
+    AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
+};
+use crate::schema::{Authorization, ExtractAuthorizationError};
+
 
 #[tokio::main]
 #[allow(deprecated)]
-async fn main() -> std::io::Result<()> {
-    let schema = create_schema_with_context();
+async fn main() -> std::result::Result<(), InitServiceError> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    SimpleLogger::new()
-        .with_level(LevelFilter::Debug)
-        .with_module_level(module_path!(), LevelFilter::Debug)
-        .init()
-        .unwrap();
+    let schema = create_schema_with_context().await?;
 
-    HttpServer::new(move || App::new().configure(configure_service).data(schema.clone()))
-        .bind("0.0.0.0:8001")?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .wrap(Logger::default())
+            .configure(configure_service)
+            .data(schema.clone())
+    })
+    .bind("0.0.0.0:8001")?
+    .run()
+    .await
+    .map_err(|e| e.into())
+}
+
+#[derive(Debug, Error)]
+pub enum InitServiceError {
+    #[error("Cannot acquire client.")]
+    CannotAcquireClient,
+
+    #[error(transparent)]
+    IO(#[from] io::Error),
 }
 
 pub fn configure_service(cfg: &mut web::ServiceConfig) {
@@ -38,8 +58,18 @@ pub fn configure_service(cfg: &mut web::ServiceConfig) {
     );
 }
 
-async fn index(schema: web::Data<AppSchema>, _http_req: HttpRequest, req: GraphQLRequest) -> GraphQLResponse {
-    let query = req.into_inner();
+async fn index(schema: web::Data<AppSchema>, http_req: HttpRequest, req: GraphQLRequest) -> GraphQLResponse {
+    let authorization = match Authorization::try_from_req(&http_req) {
+        Err(e) => {
+            log::debug!("Cannot extract authorization data: {}", e);
+
+            let permission_denied_error = ServerError::new("Permission denied.", None);
+            let response = Response::from_errors(vec![permission_denied_error]);
+            return response.into();
+        }
+        Ok(v) => v,
+    };
+    let query = req.into_inner().data(authorization);
     schema.execute(query).await.into()
 }
 
@@ -58,10 +88,19 @@ async fn index_playground() -> HttpResponse {
         ))
 }
 
-pub fn create_schema_with_context() -> AppSchema {
-    Schema::build(Query, Mutation, EmptySubscription)
+type IdentityServiceRef = IdentityServiceClient<tonic::transport::Channel>;
+
+pub async fn create_schema_with_context() -> std::result::Result<AppSchema, InitServiceError> {
+    let identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
+        .await
+        .map_err(|_| InitServiceError::CannotAcquireClient)?;
+
+    log::info!("Created IdentityService client.");
+
+    Ok(Schema::build(Query, Mutation, EmptySubscription)
         .extension(Authorizer)
-        .finish()
+        .data(identity_service_client)
+        .finish())
 }
 
 pub type AppSchema = Schema<Query, Mutation, EmptySubscription>;
@@ -70,10 +109,8 @@ pub struct Mutation;
 
 #[Object]
 impl Query {
-    async fn accounts(&self, _ctx: &Context<'_>) -> std::result::Result<Vec<UserAccount>, ListAccountsError> {
-        let mut identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
-            .await
-            .map_err(|_| ListAccountsError::CannotAcquireClient)?;
+    async fn accounts<'a>(&self, ctx: &Context<'a>) -> std::result::Result<Vec<UserAccount>, ListAccountsError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
         let request = tonic::Request::new(ListAccountsInput {
             include_non_discoverable: true,
             starting_token: None,
@@ -106,12 +143,11 @@ impl Query {
 impl Mutation {
     async fn authenticate(
         &self,
+        ctx: &Context<'_>,
         email: String,
         password: String,
     ) -> std::result::Result<AuthenticationOutput, AuthenticateError> {
-        let mut identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
-            .await
-            .map_err(|_| AuthenticateError::CannotAcquireClient)?;
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
         let request = tonic::Request::new(AuthenticateInput { email, password });
         let output = identity_service_client
             .authenticate(request)
@@ -124,22 +160,42 @@ impl Mutation {
             refresh_token: output.refresh_token,
         })
     }
+
+    async fn generate_access_token(
+        &self,
+        ctx: &Context<'_>,
+        refresh_token: String,
+    ) -> std::result::Result<GenerateAccessTokenOutput, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let authorization = ctx
+            .data_unchecked::<Option<Authorization>>()
+            .as_ref()
+            .ok_or(GraphQLError::PermissionDenied)?;
+        let request = tonic::Request::new(GenerateAccessTokenInput {
+            account_id: authorization.claims.sub.clone(),
+            refresh_token,
+        });
+        let output = identity_service_client
+            .generate_access_token(request)
+            .await
+            .map_err(|_| GraphQLError::PermissionDenied)?
+            .into_inner();
+
+        Ok(GenerateAccessTokenOutput {
+            access_token: output.access_token,
+            refresh_token: output.refresh_token,
+        })
+    }
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 enum ListAccountsError {
-    #[error("Cannot acquire IdentityService client.")]
-    CannotAcquireClient,
-
     #[error("Operation error.")]
     Operation,
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 enum AuthenticateError {
-    #[error("Cannot acquire IdentityService client.")]
-    CannotAcquireClient,
-
     #[error("Operation error.")]
     Operation,
 }
