@@ -29,3 +29,29 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
 
     set_global_default(subscriber).expect("Failed to set tracing subscriber");
 }
+
+/// Utility macro to log information about an error and map it to some other type.
+///
+/// This is meant to be used in a `Result::map_err`, e.g.:
+///
+/// ```rust
+/// foo().map_err(simple_err_map!("Foo failed.", MyError::Foo))?;
+/// ```
+///
+/// Gets expanded into:
+///
+/// ```rust
+/// foo().map_err(|e| {
+///     tracing::error!(error = ?e, "Foo failed.");
+///     MyError::Foo
+/// })?;
+/// ```    
+#[macro_export]
+macro_rules! simple_err_map {
+    ($msg:expr, $result:expr) => {
+        |e| {
+            tracing::error!(error = ?e, $msg);
+            $result
+        }
+    };
+}

@@ -13,11 +13,7 @@ use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use service_core::resource_access::Authorizer;
 use thiserror::Error;
 use tracing::field::display;
-
-
-
-
-
+use tracing_futures::Instrument;
 
 use crate::integration::identity_service::client::identity_service_client::IdentityServiceClient;
 use crate::integration::identity_service::client::{AuthenticateInput, GenerateAccessTokenInput, ListAccountsInput};
@@ -135,11 +131,9 @@ impl Query {
         });
         let output = identity_service_client
             .list_accounts(request)
+            .instrument(tracing::info_span!("identity_service::list_accounts"))
             .await
-            .map_err(|e| {
-                tracing::error!(error = ?e, "Error calling ListAccounts.");
-                ListAccountsError::Operation
-            })?
+            .map_err(simple_err_map!("ListAccounts error.", ListAccountsError::Operation))?
             .into_inner();
 
         Ok(output
@@ -157,6 +151,7 @@ impl Query {
 
 #[Object]
 impl Mutation {
+    #[tracing::instrument(skip_all)]
     async fn authenticate(
         &self,
         ctx: &Context<'_>,
@@ -167,8 +162,9 @@ impl Mutation {
         let request = tonic::Request::new(AuthenticateInput { email, password });
         let output = identity_service_client
             .authenticate(request)
+            .instrument(tracing::info_span!("identity_service::authenticate"))
             .await
-            .map_err(|_| AuthenticateError::Operation)?
+            .map_err(simple_err_map!("Authenticate failed.", AuthenticateError::Operation))?
             .into_inner();
 
         Ok(AuthenticationOutput {
@@ -177,6 +173,7 @@ impl Mutation {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     async fn generate_access_token(
         &self,
         ctx: &Context<'_>,
