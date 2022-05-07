@@ -1,6 +1,6 @@
 use std::cmp::PartialEq;
 use std::collections::btree_map::OccupiedError;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -38,7 +38,7 @@ pub struct PathNode {
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum Segment {
-    Named(String, Option<BTreeMap<String, Argument>>),
+    Named(String, BTreeMap<String, Argument>),
     Any,
 }
 
@@ -167,13 +167,13 @@ impl PathNode {
 
 impl Segment {
     pub fn no_args(name: impl Into<String>) -> Self {
-        Segment::Named(name.into(), None)
+        Segment::Named(name.into(), BTreeMap::new())
     }
 
     pub fn with_args(name: impl Into<String>, args: impl IntoIterator<Item = Argument>) -> Self {
         Segment::Named(
             name.into(),
-            Some(args.into_iter().map(|arg| (arg.name.clone(), arg)).collect()),
+            args.into_iter().map(|arg| (arg.name.clone(), arg)).collect(),
         )
     }
 }
@@ -267,26 +267,23 @@ impl Superset for Segment {
                 if lname != rname {
                     false
                 } else {
-                    match (largs, rargs) {
-                        (None, None) => true,
-                        // Incompatible fields arguments are not comparable.
-                        (Some(_), None) | (None, Some(_)) => false,
-                        (Some(largs), Some(rargs)) => {
-                            for larg in largs.values() {
-                                match rargs.get(&larg.name) {
-                                    // Incompatible fields arguments are not comparable.
-                                    None => return false,
-                                    Some(rarg) => {
-                                        if !larg.is_superset_of(rarg) {
-                                            return false;
-                                        }
-                                    }
+                    if largs.keys().collect::<Vec<_>>() != rargs.keys().collect::<Vec<_>>() {
+                        return false;
+                    }
+
+                    for larg in largs.values() {
+                        match rargs.get(&larg.name) {
+                            // Incompatible fields arguments are not comparable.
+                            None => return false,
+                            Some(rarg) => {
+                                if !larg.is_superset_of(rarg) {
+                                    return false;
                                 }
                             }
-
-                            true
                         }
                     }
+
+                    true
                 }
             }
         }
@@ -356,14 +353,18 @@ impl Display for Segment {
             Segment::Named(name, args) => {
                 write!(f, "{}", name)?;
 
-                if let Some(args) = &args {
-                    let mut joined_args = String::default();
-                    let mut it = args.values().peekable();
-                    while let Some(arg) = it.next() {
-                        joined_args.push_str(&format!("{arg}{}", if it.peek().is_some() { ", " } else { "" }));
-                    }
-                    write!(f, "({})", joined_args)?;
+                let mut joined_args = String::default();
+                let mut it = args.values().peekable();
+                while let Some(arg) = it.next() {
+                    joined_args.push_str(&format!("{arg}{}", if it.peek().is_some() { ", " } else { "" }));
                 }
+                write!(
+                    f,
+                    "{}{}{}",
+                    if args.is_empty() { "" } else { "(" },
+                    joined_args,
+                    if args.is_empty() { "" } else { ")" }
+                )?;
             }
         }
 
@@ -567,7 +568,7 @@ mod string_tests {
 #[cfg(test)]
 #[allow(unused_must_use)]
 mod merge_tests {
-    
+
     use crate::resource_access::string_interop::compiler::from_string;
 
     #[test]

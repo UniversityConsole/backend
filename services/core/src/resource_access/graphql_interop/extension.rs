@@ -18,6 +18,7 @@ pub struct AuthorizerExtension;
 
 #[async_trait::async_trait]
 impl extensions::Extension for AuthorizerExtension {
+    #[tracing::instrument(skip_all)]
     async fn parse_query(
         &self,
         ctx: &extensions::ExtensionContext<'_>,
@@ -32,11 +33,11 @@ impl extensions::Extension for AuthorizerExtension {
             .pop()
             .ok_or_else(|| ServerError::new("No access request was compiled.", None))?;
 
-        if log_enabled!(Level::Debug) {
+        if log_enabled!(Level::Warn) {
             let access_req_fmt = access_request.paths.iter().fold(String::new(), |b, v| {
                 format!("{b}{}{v}", if b.is_empty() { "" } else { ", " })
             });
-            log::debug!("access_request = {:?}", access_req_fmt);
+            tracing::warn!(access_request = %access_req_fmt, "Computed access request paths.");
         }
 
         next.run(ctx, query, variables).await

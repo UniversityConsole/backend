@@ -34,13 +34,13 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
 ///
 /// This is meant to be used in a `Result::map_err`, e.g.:
 ///
-/// ```rust
+/// ```rust,compile_fail
 /// foo().map_err(simple_err_map!("Foo failed.", MyError::Foo))?;
 /// ```
 ///
 /// Gets expanded into:
 ///
-/// ```rust
+/// ```rust,compile_fail
 /// foo().map_err(|e| {
 ///     tracing::error!(error = ?e, "Foo failed.");
 ///     MyError::Foo

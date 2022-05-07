@@ -1,20 +1,29 @@
 use async_graphql_parser::types::{
     DocumentOperations, ExecutableDocument, OperationDefinition, OperationType, Selection,
 };
+use async_graphql_value::Value;
 use thiserror::Error;
 
-use crate::resource_access::types::{AccessKind, AccessRequest, AppendNodeError, PathNode, PathSet, Segment};
+use crate::resource_access::types::{
+    AccessKind, AccessRequest, AppendNodeError, Argument, ArgumentValue, PathNode, PathSet, Segment,
+};
 
 #[derive(Error, Debug)]
 pub enum CompileError {
     #[error("Unsupported selection kind: {0}")]
     UnsupportedSelectionKind(String),
 
+    #[error("Unsupported numeric literal. Only i64 is supported.")]
+    UnsupportedNumericLiteral,
+
     #[error("Document with multiple operations not supported.")]
     MultiOperationsNotSupported,
 
     #[error("Operation {0} not supported.")]
     UnsupportedOperation(OperationType),
+
+    #[error("Argument {0} is not supported: {1}.")]
+    UnsupportedArgument(String, String),
 
     #[error("Cannot select subfields of a match-any.")]
     CannotAppendToAny,
@@ -54,7 +63,26 @@ fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selectio
     match selection {
         Selection::Field(field) => {
             let field = &field.node;
-            let segment = Segment::no_args(field.name.clone().into_inner().as_str());
+            let segment = Segment::with_args(
+                field.name.clone().into_inner().as_str(),
+                field
+                    .arguments
+                    .iter()
+                    .map(|(name, val)| {
+                        let name = name.node.to_string();
+                        let value = match &val.node {
+                            Value::String(s) => ArgumentValue::StringLiteral(s.clone()),
+                            Value::Number(n) => ArgumentValue::IntegerLiteral(
+                                n.as_i64().ok_or(CompileError::UnsupportedNumericLiteral)?,
+                            ),
+                            Value::Boolean(b) => ArgumentValue::BoolLiteral(*b),
+                            _ => return Err(CompileError::UnsupportedArgument(name, val.to_string())),
+                        };
+
+                        Ok(Argument { name, value })
+                    })
+                    .collect::<Result<Vec<_>, CompileError>>()?,
+            );
             stack.push(segment);
 
             let sub_fields = &field.selection_set.node.items;

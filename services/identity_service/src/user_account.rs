@@ -192,7 +192,6 @@ mod tests {
         };
         let serialized = serde_ddb::to_hashmap(&account).unwrap();
         let serialized_password_attr = serialized.get(&"Password".to_string()).unwrap();
-        assert!(serialized_password_attr.is_bs());
-        assert!(!serialized_password_attr.is_s());
+        assert!(serialized_password_attr.is_s());
     }
 }
