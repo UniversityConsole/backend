@@ -1,4 +1,4 @@
-use async_graphql::{Context, Enum, Object, SimpleObject, ID};
+use async_graphql::{Context, Enum, Object, ServerError, SimpleObject, ID};
 use thiserror::Error;
 use tracing_futures::Instrument;
 
@@ -7,7 +7,7 @@ use crate::integration::identity_service::IdentityServiceRef;
 
 #[derive(Clone)]
 pub struct UserAccount {
-    pub account_id: ID,
+    pub id: ID,
     pub email: String,
     pub first_name: String,
     pub last_name: String,
@@ -52,8 +52,8 @@ pub enum GraphQLError {
 
 #[Object]
 impl UserAccount {
-    async fn account_id(&self) -> &ID {
-        &self.account_id
+    async fn id(&self) -> &ID {
+        &self.id
     }
 
     async fn email(&self) -> &String {
@@ -72,7 +72,7 @@ impl UserAccount {
     async fn policy_statements(&self, ctx: &Context<'_>) -> Result<Vec<RenderedPolicyStatement>, GraphQLError> {
         let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
         let request = tonic::Request::new(GetPermissionsInput {
-            account_id: self.account_id.to_string(),
+            account_id: self.id.to_string(),
         });
         let output = identity_service_client
             .get_permissions(request)
@@ -105,5 +105,11 @@ impl UserAccount {
                 }
             })
             .collect())
+    }
+}
+
+impl From<GraphQLError> for ServerError {
+    fn from(e: GraphQLError) -> Self {
+        ServerError::new(e.to_string(), None)
     }
 }

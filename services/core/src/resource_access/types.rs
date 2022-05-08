@@ -1,6 +1,6 @@
 use std::cmp::PartialEq;
 use std::collections::btree_map::OccupiedError;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap};
 use std::convert::TryFrom;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 

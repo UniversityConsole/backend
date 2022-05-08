@@ -7,6 +7,7 @@ use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql::{Context, EmptySubscription, Object, Response, Schema, ServerError, ID};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
+use frontend::graphql::extension::Authorizer;
 use frontend::integration::identity_service::client::identity_service_client::IdentityServiceClient;
 use frontend::integration::identity_service::client::{
     AuthenticateInput, DescribeAccountInput, GenerateAccessTokenInput, ListAccountsInput,
@@ -16,7 +17,6 @@ use frontend::integration::identity_service::schema::{
 };
 use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
-use service_core::resource_access::Authorizer;
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
 use thiserror::Error;
@@ -141,7 +141,7 @@ impl Query {
             .accounts
             .into_iter()
             .map(|account| UserAccount {
-                account_id: account.account_id.into(),
+                id: account.account_id.into(),
                 email: account.email,
                 first_name: account.first_name,
                 last_name: account.last_name,
@@ -166,7 +166,7 @@ impl Query {
         Ok(output
             .account
             .map(|account| UserAccount {
-                account_id: account.account_id.into(),
+                id: account.account_id.into(),
                 email: account.email,
                 first_name: account.first_name,
                 last_name: account.last_name,

@@ -5,7 +5,7 @@ use crate::resource_access::types::{AppendNodeError, Argument, ArgumentValue, Pa
 
 #[derive(Error, Debug)]
 pub enum CompileError {
-    #[error("Cannot match fields uner an any-match.")]
+    #[error("Cannot match fields under an any-match.")]
     CannotAppendToAny,
 
     #[error("Unknown.")]

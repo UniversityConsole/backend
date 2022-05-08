@@ -46,5 +46,5 @@ impl Authorization {
 }
 
 fn jwt_secret() -> Option<String> {
-    env::var("ACCESS_TOKEN_SECRET").map_or(None, Some)
+    env::var("ACCESS_TOKEN_SECRET").ok()
 }

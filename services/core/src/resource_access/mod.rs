@@ -3,7 +3,6 @@ pub mod serde;
 pub mod string_interop;
 pub mod types;
 
-pub use graphql_interop::extension::{Authorizer, AuthorizerExtension};
 pub use types::{AccessKind, AccessRequest, PolicyStatement};
 
 /// Parse resource path sets from strings.
