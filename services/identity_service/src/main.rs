@@ -1,10 +1,11 @@
-#![feature(never_type, let_else)]
+#![feature(never_type, let_else, once_cell)]
 #![allow(dead_code)]
 
 extern crate core;
 
 mod context;
 mod operations;
+mod permissions;
 mod svc;
 mod user_account;
 mod utils;

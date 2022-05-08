@@ -84,7 +84,7 @@ message PermissionsDocument {
 }
 
 message AuthorizeInput {
-    string account_id = 1;
+    google.protobuf.StringValue account_id = 1;
     AccessRequest access_request = 2;
 }
 

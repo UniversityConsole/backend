@@ -9,6 +9,8 @@ use service_core::resource_access::{AccessKind, AccessRequest};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::permissions::anonymous::ANONYMOUS_PERMISSIONS;
+use crate::permissions::default::DEFAULT_PERMISSIONS;
 use crate::user_account::PermissionsDocument;
 use crate::utils::account::{account_key_from_id, AccountKeyFromIdError};
 
@@ -83,11 +85,19 @@ pub async fn get_permissions_from_ddb(
 /// Computes a single path set from the given permissions document. This function skips any statement
 /// in the permissions document that does not match the desired access kind.
 ///
+/// # Notes
+///
+/// This function merges permissions for anonymous entities, permissions in the given permissions
+/// document and, if the subject entity is authenticated, default permissions for authenticated
+/// entities.
+///
 /// # Arguments
 ///
 /// * `permissions_document` - the permissions document to be used.
 /// * `access_kind` - the desired access kind. The statements in the permissions document will be
 /// processed only if they match this.
+/// * `is_authenticated` - whether the subject entity is authenticated. Setting this to true will
+/// result in including the default permissions for authenticated entities into the result.
 ///
 /// # Returns
 ///
@@ -96,8 +106,24 @@ pub async fn get_permissions_from_ddb(
 pub fn get_access_path_set(
     permissions_document: &PermissionsDocument,
     access_kind: AccessKind,
+    is_authenticated: bool,
 ) -> Result<PathSet, (&String, usize, usize)> {
     let mut path_set = PathSet::default();
+
+    ANONYMOUS_PERMISSIONS
+        .iter()
+        .filter(|stmt| stmt.kind == access_kind)
+        .flat_map(|stmt| &stmt.paths)
+        .for_each(|path| path_set.merge_path_node(path.clone()));
+
+    if is_authenticated {
+        DEFAULT_PERMISSIONS
+            .iter()
+            .filter(|stmt| stmt.kind == access_kind)
+            .flat_map(|stmt| &stmt.paths)
+            .for_each(|path| path_set.merge_path_node(path.clone()));
+    }
+
     for (stmt_idx, stmt) in permissions_document.statements.iter().enumerate() {
         if stmt.access_kind != access_kind {
             continue;

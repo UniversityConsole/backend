@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::operations::authorize::AuthorizeError::InvalidResourcePath;
 use crate::svc::{AccessRequestParseError, AuthorizeInput, AuthorizeOutput};
+use crate::user_account::PermissionsDocument;
 use crate::utils::permissions::{
     get_access_path_set, get_permissions_from_ddb, merge_access_request_paths, GetPermissionsFromDdbError,
 };
@@ -29,30 +30,42 @@ pub(crate) async fn authorize(
     ddb: &(impl GetItem + Query),
     input: &AuthorizeInput,
 ) -> Result<AuthorizeOutput, EndpointError<AuthorizeError>> {
-    let account_id = Uuid::parse_str(input.account_id.clone().as_mut())
+    let account_id = input
+        .account_id
+        .as_ref()
+        .map(|account_id| Uuid::parse_str(account_id.clone().as_ref()))
+        .transpose()
         .map_err(|_| EndpointError::validation("Invalid account ID provided."))?;
-    let permissions_document = get_permissions_from_ddb(ddb, ctx.accounts_table_name.as_ref(), &account_id)
-        .await
-        .map_err(|e| match e {
-            GetPermissionsFromDdbError::AccountNotFound => EndpointError::operation(AuthorizeError::NotFound),
-            _ => EndpointError::internal(),
-        })?;
+    let permissions_document = if let Some(account_id) = &account_id {
+        get_permissions_from_ddb(ddb, ctx.accounts_table_name.as_ref(), &account_id)
+            .await
+            .map_err(|e| match e {
+                GetPermissionsFromDdbError::AccountNotFound => EndpointError::operation(AuthorizeError::NotFound),
+                _ => EndpointError::internal(),
+            })?
+    } else {
+        PermissionsDocument::default()
+    };
+
     let access_request: AccessRequest = input.access_request.clone().unwrap().try_into().map_err(|e| match e {
         AccessRequestParseError::CompileError(idx) => EndpointError::operation(InvalidResourcePath(idx)),
         AccessRequestParseError::MultiRootPath(idx) => EndpointError::operation(InvalidResourcePath(idx)),
     })?;
 
-    let allowed_paths = get_access_path_set(&permissions_document, access_request.kind).map_err(|err| {
-        let (invalid_path, stmt_idx, path_idx) = err;
-        log::error!(
-            "Invalid path in permissions document for account {} (statement: {}, path: {}): {}.",
-            account_id.to_hyphenated(),
-            stmt_idx,
-            path_idx,
-            invalid_path,
-        );
-        EndpointError::internal()
-    })?;
+    let allowed_paths =
+        get_access_path_set(&permissions_document, access_request.kind, account_id.is_some()).map_err(|err| {
+            if let Some(account_id) = &account_id {
+                let (invalid_path, stmt_idx, path_idx) = err;
+                log::error!(
+                    "Invalid path in permissions document for account {} (statement: {}, path: {}): {}.",
+                    account_id.to_hyphenated(),
+                    stmt_idx,
+                    path_idx,
+                    invalid_path,
+                );
+            }
+            EndpointError::internal()
+        })?;
     let desired_paths = merge_access_request_paths(access_request);
     let permission_granted = allowed_paths.is_superset_of(&desired_paths);
 

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_graphql::{extensions, ServerError};
-use log::{log_enabled, Level};
 use service_core::resource_access::graphql_interop::parser::from_document;
 use tracing_futures::Instrument;
 
@@ -38,35 +37,27 @@ impl extensions::Extension for AuthorizerExtension {
             .pop()
             .ok_or_else(|| ServerError::new("No access request was compiled.", None))?;
 
-        if log_enabled!(Level::Info) {
-            let access_req_fmt = access_request.paths.iter().fold(String::new(), |b, v| {
-                format!("{b}{}{v}", if b.is_empty() { "" } else { ", " })
-            });
-            tracing::info!(access_request = %access_req_fmt, "Computed access request paths.");
-        }
-
-        let claims = ctx
+        let account_id = ctx
             .data_unchecked::<Option<Authorization>>()
             .as_ref()
-            .map(|v| &v.claims);
-        if let Some(claims) = claims {
-            let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
-            let request = tonic::Request::new(AuthorizeInput {
-                account_id: claims.sub.clone(),
-                access_request: Some(access_request.into()),
-            });
-            let output = identity_service_client
-                .authorize(request)
-                .instrument(tracing::info_span!("identity_service::authorize"))
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = ?&e, "Authorize failed.");
-                    ServerError::from(GraphQLError::Internal)
-                })?
-                .into_inner();
-            if !output.permission_granted {
-                return Err(GraphQLError::PermissionDenied.into());
-            }
+            .map(|v| v.claims.sub.clone());
+
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let request = tonic::Request::new(AuthorizeInput {
+            account_id,
+            access_request: Some(access_request.into()),
+        });
+        let output = identity_service_client
+            .authorize(request)
+            .instrument(tracing::info_span!("identity_service::authorize"))
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?&e, "Authorize failed.");
+                ServerError::from(GraphQLError::Internal)
+            })?
+            .into_inner();
+        if !output.permission_granted {
+            return Err(GraphQLError::PermissionDenied.into());
         }
 
         Ok(document)
