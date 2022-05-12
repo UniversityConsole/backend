@@ -4,7 +4,7 @@ use zeroize::Zeroize;
 
 use crate::svc::{CreateAccountInput, CreateAccountOutput};
 use crate::user_account::{hash_password, repository, UserAccount};
-use crate::{AccountsRepository, Context};
+use crate::{AccountsRepository};
 
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]

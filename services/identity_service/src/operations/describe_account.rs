@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::svc::{DescribeAccountInput, DescribeAccountOutput};
 use crate::user_account::{AccountAttributes, AccountLookup, GetAccountError};
-use crate::{AccountsRepository, Context};
+use crate::{AccountsRepository};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]

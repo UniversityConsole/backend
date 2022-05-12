@@ -110,12 +110,8 @@ impl<T: ThreadSafeDdbClient> DdbAccountsRepository<T> {
     }
 
     /// Generates the table key for the desired account email, then retrieves the account from DynamoDB.
-    async fn account_by_email(
-        &self,
-        email: &String,
-        attrs: &AccountAttributes,
-    ) -> Result<UserAccount, GetAccountError> {
-        let key = self.account_key_from_email(email.clone());
+    async fn account_by_email(&self, email: &str, attrs: &AccountAttributes) -> Result<UserAccount, GetAccountError> {
+        let key = self.account_key_from_email(email.to_owned());
         self.account(key, attrs).await
     }
 }
