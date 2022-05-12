@@ -1594,6 +1594,7 @@ name = "identity_service"
 version = "0.2.0"
 dependencies = [
  "argon2",
+ "async-trait",
  "aws-config",
  "aws-sdk-dynamodb",
  "base64",
@@ -1617,6 +1618,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
+ "typed-builder",
  "utils",
  "uuid 0.8.2",
  "validator",

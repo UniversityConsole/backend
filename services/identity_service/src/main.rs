@@ -29,11 +29,18 @@ use tonic::{Request, Response, Status};
 use crate::context::ContextKey;
 use crate::operations::authenticate::authenticate;
 use crate::operations::generate_access_token::generate_access_token;
+use crate::user_account::ddb_repository::DdbAccountsRepository;
+use crate::user_account::AccountsRepository;
 use crate::utils::memcache::MemcacheConnPool;
 
-struct IdentityServiceImpl {
+trait ThreadSafeAccountsRepository: AccountsRepository + Send + Sync {}
+impl<T: AccountsRepository + Send + Sync> ThreadSafeAccountsRepository for T {}
+
+
+struct IdentityServiceImpl<T: ThreadSafeAccountsRepository> {
     pub ctx: Context,
     pub refresh_token_cache: MemcacheConnPool,
+    pub accounts_repository: T,
 }
 
 #[derive(Debug, Error)]
@@ -48,28 +55,29 @@ enum ServiceInitError {
     ConnectionPool(r2d2::Error),
 }
 
-impl IdentityServiceImpl {
-    fn new(ctx: Context) -> Result<Self, ServiceInitError> {
+impl<T: ThreadSafeAccountsRepository> IdentityServiceImpl<T> {
+    fn new(ctx: Context, accounts_repository: T) -> Result<Self, ServiceInitError> {
         let endpoint = Url::parse(ctx.refresh_token_cache.as_ref())
             .map_err(|_| ServiceInitError::InvalidUrl(ctx.refresh_token_cache.clone()))?;
         let connection_manager = memcache::ConnectionManager::new(endpoint);
         let refresh_token_cache =
-            MemcacheConnPool::new(connection_manager).map_err(|e| ServiceInitError::ConnectionPool(e))?;
+            MemcacheConnPool::new(connection_manager).map_err(ServiceInitError::ConnectionPool)?;
 
         Ok(Self {
             ctx,
             refresh_token_cache,
+            accounts_repository,
         })
     }
 }
 
 #[tonic::async_trait]
-impl IdentityService for IdentityServiceImpl {
+impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServiceImpl<T> {
     async fn create_account(
         &self,
-        mut request: Request<CreateAccountInput>,
+        request: Request<CreateAccountInput>,
     ) -> Result<Response<CreateAccountOutput>, Status> {
-        create_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_mut())
+        create_account(&self.accounts_repository, request.into_inner())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
@@ -79,7 +87,7 @@ impl IdentityService for IdentityServiceImpl {
         &self,
         request: Request<DescribeAccountInput>,
     ) -> Result<Response<DescribeAccountOutput>, Status> {
-        describe_account(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+        describe_account(&self.accounts_repository, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
@@ -163,7 +171,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = "0.0.0.0:8080".parse().unwrap();
     let ctx = Context::from_env().await;
-    let identity_service = IdentityServiceImpl::new(ctx)?;
+    let accounts_repository = DdbAccountsRepository::new(ctx.dynamodb_adapter.clone(), ctx.accounts_table_name.clone());
+    let identity_service = IdentityServiceImpl::new(ctx, accounts_repository)?;
     let server = IdentityServiceServer::new(identity_service);
 
     Server::builder().add_service(server).serve(addr).await?;

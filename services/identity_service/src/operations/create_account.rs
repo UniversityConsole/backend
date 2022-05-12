@@ -1,40 +1,26 @@
-use aws_sdk_dynamodb::error::{PutItemError, PutItemErrorKind};
-use aws_sdk_dynamodb::types::SdkError;
-use service_core::ddb::put_item::{PutItem, PutItemInput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
-use uuid::Uuid;
-use validator::validate_email;
 use zeroize::Zeroize;
 
 use crate::svc::{CreateAccountInput, CreateAccountOutput};
-use crate::user_account::{hash_password, PermissionsDocument, UserAccount};
-use crate::Context;
+use crate::user_account::{hash_password, repository, UserAccount};
+use crate::{AccountsRepository, Context};
 
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum CreateAccountError {
     #[error("An account with this email already exists.")]
-    DuplicateAccountError,
+    DuplicateAccount,
 }
 
 pub(crate) async fn create_account(
-    ctx: &Context,
-    ddb: &impl PutItem,
-    input: &mut CreateAccountInput,
+    accounts_repository: &impl AccountsRepository,
+    mut input: CreateAccountInput,
 ) -> Result<CreateAccountOutput, EndpointError<CreateAccountError>> {
     let account_attributes = input
         .account_attributes
         .as_mut()
         .ok_or_else(|| EndpointError::validation("Account attributes missing."))?;
-
-    if !validate_email(&account_attributes.email) {
-        return Err(EndpointError::validation("Email address is invalid."));
-    }
-
-    if account_attributes.password.is_empty() {
-        return Err(EndpointError::validation("Password is required."));
-    }
 
     let password = hash_password(&account_attributes.password).map_err(|e| {
         log::error!("Hashing password failed: {:?}", e);
@@ -42,36 +28,26 @@ pub(crate) async fn create_account(
     })?;
     account_attributes.password.zeroize();
 
-    let account = UserAccount {
-        account_id: Uuid::new_v4(),
-        email: account_attributes.email.clone(),
-        first_name: account_attributes.first_name.clone(),
-        last_name: account_attributes.last_name.clone(),
-        password,
-        discoverable: account_attributes.discoverable,
-        permissions_document: PermissionsDocument::default(),
-    };
-
-    let put_item_input = PutItemInput::builder()
-        .table_name(ctx.accounts_table_name.clone())
-        .item(serde_ddb::to_hashmap(&account).unwrap())
-        .condition_expression("attribute_not_exists(Email)")
+    let account = UserAccount::builder()
+        .email(&account_attributes.email)
+        .first_name(&account_attributes.first_name)
+        .last_name(&account_attributes.last_name)
+        .password(password)
+        .discoverable(account_attributes.discoverable)
         .build();
 
-    ddb.put_item(put_item_input).await.map_err(|err| match err {
-        SdkError::ServiceError {
-            err:
-                PutItemError {
-                    kind: PutItemErrorKind::ConditionalCheckFailedException(_),
-                    ..
-                },
-            ..
-        } => EndpointError::Operation(CreateAccountError::DuplicateAccountError),
-        _ => {
-            log::error!("Failed creating item in DynamoDB: {:?}", err);
-            EndpointError::Internal
-        }
-    })?;
+    accounts_repository
+        .create_account(&account)
+        .await
+        .map_err(|err| match err {
+            repository::CreateAccountError::DuplicateAccount => {
+                EndpointError::operation(CreateAccountError::DuplicateAccount)
+            }
+            _ => {
+                log::error!("Create account failed: {:?}", err);
+                EndpointError::Internal
+            }
+        })?;
 
     Ok(CreateAccountOutput {
         account_id: account.account_id.to_string(),
@@ -81,7 +57,7 @@ pub(crate) async fn create_account(
 impl OperationError for CreateAccountError {
     fn code(&self) -> tonic::Code {
         match self {
-            CreateAccountError::DuplicateAccountError => tonic::Code::AlreadyExists,
+            CreateAccountError::DuplicateAccount => tonic::Code::AlreadyExists,
         }
     }
 }

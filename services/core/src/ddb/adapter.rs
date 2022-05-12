@@ -1,6 +1,6 @@
 use aws_sdk_dynamodb::Client as RawClient;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Adapter {
     pub(crate) raw: RawClient,
 }

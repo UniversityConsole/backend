@@ -1,27 +1,39 @@
 use std::convert::From;
+use std::fmt::{Display, Formatter};
 
-use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use service_core::resource_access::AccessKind;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::svc::PermissionsDocument as PermissionsDocumentModel;
 
-#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default, TypedBuilder)]
 #[serde(rename_all = "PascalCase")]
 #[serde(deny_unknown_fields)]
 pub struct UserAccount {
     #[serde(default = "Uuid::nil")]
+    #[builder(default = Uuid::new_v4())]
     pub account_id: Uuid,
+
+    #[builder(setter(into))]
     pub email: String,
+
+    #[builder(setter(into))]
     pub first_name: String,
+
+    #[builder(setter(into))]
     pub last_name: String,
+
     #[serde(default)]
+    #[builder(setter(into))]
     pub password: String,
+
+    #[builder(default = true)]
     pub discoverable: bool,
+
     #[serde(default)]
+    #[builder(default)]
     pub permissions_document: PermissionsDocument,
 }
 
@@ -39,29 +51,18 @@ pub struct RenderedPolicyStatement {
     pub paths: Vec<String>,
 }
 
-
-/// Produces a hashed value of the given password to be stored in a persistent storage. The algorithm
-/// used for hashing the password is Argon2id.
-pub fn hash_password(val: &String) -> argon2::password_hash::Result<String> {
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-
-    Ok(argon2.hash_password(val.as_bytes(), &salt)?.to_string())
+// FIXME Generate this automatically from the UserAccount structure.
+#[derive(Clone, Copy, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub enum AccountAttr {
+    AccountId,
+    Email,
+    FirstName,
+    LastName,
+    Password,
+    Discoverable,
+    PermissionsDocument,
 }
 
-/// Verifies the given password `sub` against a hashed value stored in a persistent storage. If the
-/// passwords match, then an `Ok(())` is returned, otherwise an error is returned.
-///
-/// # Errors
-///
-/// In case `sub` does not match the hashed value `actual_hashed`, `Error::Password` is returned.
-/// However, the underlying password hash system may return other errors.
-pub fn verify_password(sub: &String, actual_hashed: &String) -> argon2::password_hash::Result<()> {
-    let argon2 = Argon2::default();
-    let parsed_hash = PasswordHash::new(actual_hashed.as_ref())?;
-
-    argon2.verify_password(sub.as_bytes(), &parsed_hash)
-}
 
 impl From<PermissionsDocument> for PermissionsDocumentModel {
     fn from(val: PermissionsDocument) -> PermissionsDocumentModel {
@@ -105,6 +106,11 @@ impl From<PermissionsDocumentModel> for PermissionsDocument {
     }
 }
 
+impl Display for AccountAttr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[cfg(test)]
 mod tests {
