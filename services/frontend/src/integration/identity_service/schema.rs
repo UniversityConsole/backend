@@ -1,9 +1,9 @@
 use async_graphql::{Context, Enum, Object, ServerError, SimpleObject, ID};
+use identity_service::pb::GetPermissionsInput;
 use thiserror::Error;
 use tracing_futures::Instrument;
 
-use crate::integration::identity_service::client::GetPermissionsInput;
-use crate::integration::identity_service::IdentityServiceRef;
+use super::IdentityServiceRef;
 
 #[derive(Clone)]
 pub struct UserAccount {
@@ -92,7 +92,7 @@ impl UserAccount {
 
         Ok(statements
             .map(|stmt| {
-                use crate::integration::identity_service::client::policy_statement::AccessKind as ProtobufAccessKind;
+                use identity_service::pb::policy_statement::AccessKind as ProtobufAccessKind;
                 let access_kind = if stmt.access_kind == ProtobufAccessKind::Mutation as i32 {
                     AccessKind::Mutation
                 } else {

@@ -1,11 +1,12 @@
+use identity_service::pb;
+use identity_service::pb::{DescribeAccountInput, DescribeAccountOutput};
 use serde::{Deserialize, Serialize};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
 
-use crate::svc::{DescribeAccountInput, DescribeAccountOutput};
 use crate::user_account::{AccountAttributes, AccountLookup, GetAccountError};
-use crate::{AccountsRepository};
+use crate::AccountsRepository;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -39,7 +40,7 @@ pub(crate) async fn describe_account(
             }
         })?;
     Ok(DescribeAccountOutput {
-        account: Some(crate::svc::Account {
+        account: Some(pb::Account {
             account_id: user_account.account_id.to_hyphenated().to_string(),
             email: user_account.email,
             first_name: user_account.first_name,

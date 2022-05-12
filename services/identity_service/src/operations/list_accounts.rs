@@ -1,6 +1,8 @@
 use aws_sdk_dynamodb::model::AttributeValue;
 use base64;
 use common_macros::hash_map;
+use identity_service::pb;
+use identity_service::pb::{ListAccountsInput, ListAccountsOutput};
 use serde_ddb::from_hashmap;
 use service_core::ddb::scan::{Scan, ScanInput};
 use service_core::endpoint_error::EndpointError;
@@ -11,8 +13,8 @@ use crate::Context;
 pub(crate) async fn list_accounts(
     ctx: &Context,
     ddb: &impl Scan,
-    input: &crate::svc::ListAccountsInput,
-) -> Result<crate::svc::ListAccountsOutput, EndpointError<!>> {
+    input: &ListAccountsInput,
+) -> Result<ListAccountsOutput, EndpointError<!>> {
     let page_size = if input.page_size > 0 { input.page_size } else { 32 };
 
     // TODO Find a way not to hard-code this.
@@ -87,7 +89,7 @@ pub(crate) async fn list_accounts(
             }
             accounts
                 .into_iter()
-                .map(|data| crate::svc::Account {
+                .map(|data| pb::Account {
                     account_id: data.account_id.to_hyphenated().to_string(),
                     email: data.email,
                     first_name: data.first_name,
@@ -98,7 +100,5 @@ pub(crate) async fn list_accounts(
         }
     };
 
-    log::debug!("Got accounts: {:?}", &accounts);
-
-    Ok(crate::svc::ListAccountsOutput { next_token, accounts })
+    Ok(ListAccountsOutput { next_token, accounts })
 }

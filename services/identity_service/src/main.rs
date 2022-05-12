@@ -1,16 +1,21 @@
 #![feature(never_type, let_else, once_cell)]
-#![allow(dead_code)]
 
 extern crate core;
 
 mod context;
 mod operations;
 mod permissions;
-mod svc;
 mod user_account;
 mod utils;
 
 use context::Context;
+use identity_service::pb::identity_service_server::{IdentityService, IdentityServiceServer};
+use identity_service::pb::{
+    AuthenticateInput, AuthenticateOutput, AuthorizeInput, AuthorizeOutput, CreateAccountInput, CreateAccountOutput,
+    DescribeAccountInput, DescribeAccountOutput, GenerateAccessTokenInput, GenerateAccessTokenOutput,
+    GetPermissionsInput, GetPermissionsOutput, ListAccountsInput, ListAccountsOutput, UpdatePermissionsInput,
+    UpdatePermissionsOutput,
+};
 use log::LevelFilter;
 use memcache::Url;
 use operations::authorize::authorize;
@@ -20,8 +25,6 @@ use operations::get_permissions::get_permissions;
 use operations::list_accounts::list_accounts;
 use operations::update_permissions::update_permissions;
 use simple_logger::SimpleLogger;
-use svc::identity_service_server::{IdentityService, IdentityServiceServer};
-use svc::{CreateAccountInput, CreateAccountOutput, DescribeAccountInput, DescribeAccountOutput};
 use thiserror::Error;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status};
@@ -93,10 +96,7 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
             .map_err(|err| err.into())
     }
 
-    async fn list_accounts(
-        &self,
-        request: Request<svc::ListAccountsInput>,
-    ) -> Result<Response<svc::ListAccountsOutput>, Status> {
+    async fn list_accounts(&self, request: Request<ListAccountsInput>) -> Result<Response<ListAccountsOutput>, Status> {
         list_accounts(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
@@ -105,8 +105,8 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
 
     async fn update_permissions(
         &self,
-        request: Request<svc::UpdatePermissionsInput>,
-    ) -> Result<Response<svc::UpdatePermissionsOutput>, Status> {
+        request: Request<UpdatePermissionsInput>,
+    ) -> Result<Response<UpdatePermissionsOutput>, Status> {
         update_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
@@ -115,15 +115,15 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
 
     async fn get_permissions(
         &self,
-        request: Request<svc::GetPermissionsInput>,
-    ) -> Result<Response<svc::GetPermissionsOutput>, Status> {
+        request: Request<GetPermissionsInput>,
+    ) -> Result<Response<GetPermissionsOutput>, Status> {
         get_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
             .map_err(|err| err.into())
     }
 
-    async fn authorize(&self, request: Request<svc::AuthorizeInput>) -> Result<Response<svc::AuthorizeOutput>, Status> {
+    async fn authorize(&self, request: Request<AuthorizeInput>) -> Result<Response<AuthorizeOutput>, Status> {
         authorize(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
             .await
             .map(Response::new)
@@ -132,8 +132,8 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
 
     async fn authenticate(
         &self,
-        mut request: Request<svc::AuthenticateInput>,
-    ) -> Result<Response<svc::AuthenticateOutput>, Status> {
+        mut request: Request<AuthenticateInput>,
+    ) -> Result<Response<AuthenticateOutput>, Status> {
         authenticate(
             &self.ctx,
             &self.ctx.dynamodb_adapter,
@@ -147,8 +147,8 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
 
     async fn generate_access_token(
         &self,
-        mut request: Request<svc::GenerateAccessTokenInput>,
-    ) -> Result<Response<svc::GenerateAccessTokenOutput>, Status> {
+        mut request: Request<GenerateAccessTokenInput>,
+    ) -> Result<Response<GenerateAccessTokenOutput>, Status> {
         generate_access_token(
             &self.ctx,
             &self.ctx.dynamodb_adapter,

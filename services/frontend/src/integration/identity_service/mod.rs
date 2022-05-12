@@ -1,9 +1,7 @@
-pub mod client;
 pub mod schema;
 
+use identity_service::pb::identity_service_client::IdentityServiceClient;
 use tonic::transport::Channel;
-
-use self::client::identity_service_client::IdentityServiceClient;
 
 
 pub type IdentityServiceRef = IdentityServiceClient<Channel>;

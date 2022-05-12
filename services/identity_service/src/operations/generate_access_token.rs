@@ -1,4 +1,4 @@
-
+use identity_service::pb::{GenerateAccessTokenInput, GenerateAccessTokenOutput};
 use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
@@ -7,11 +7,8 @@ use service_core::operation_error::OperationError;
 use thiserror::Error;
 use uuid::Uuid;
 
-
-
 use crate::operations::authenticate::{create_access_token, create_refresh_token};
-use crate::svc::{GenerateAccessTokenInput, GenerateAccessTokenOutput};
-use crate::user_account::{UserAccount};
+use crate::user_account::UserAccount;
 use crate::utils::account::{account_key_from_id, AccountKeyFromIdError};
 use crate::{Context, MemcacheConnPool};
 

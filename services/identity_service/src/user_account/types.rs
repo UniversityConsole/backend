@@ -1,12 +1,11 @@
 use std::convert::From;
 use std::fmt::{Display, Formatter};
 
+use identity_service::pb::PermissionsDocument as PermissionsDocumentModel;
 use serde::{Deserialize, Serialize};
 use service_core::resource_access::AccessKind;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
-
-use crate::svc::PermissionsDocument as PermissionsDocumentModel;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default, TypedBuilder)]
 #[serde(rename_all = "PascalCase")]
@@ -66,8 +65,8 @@ pub enum AccountAttr {
 
 impl From<PermissionsDocument> for PermissionsDocumentModel {
     fn from(val: PermissionsDocument) -> PermissionsDocumentModel {
-        use crate::svc::policy_statement::AccessKind as AccessKindModel;
-        use crate::svc::PolicyStatement;
+        use identity_service::pb::policy_statement::AccessKind as AccessKindModel;
+        use identity_service::pb::PolicyStatement;
 
         PermissionsDocumentModel {
             statements: val
@@ -87,7 +86,7 @@ impl From<PermissionsDocument> for PermissionsDocumentModel {
 
 impl From<PermissionsDocumentModel> for PermissionsDocument {
     fn from(val: PermissionsDocumentModel) -> PermissionsDocument {
-        use crate::svc::policy_statement::AccessKind as AccessKindModel;
+        use identity_service::pb::policy_statement::AccessKind as AccessKindModel;
 
         PermissionsDocument {
             statements: val

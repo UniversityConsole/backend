@@ -1,4 +1,5 @@
 use chrono::{Duration, Utc};
+use identity_service::pb::{AuthenticateInput, AuthenticateOutput};
 use memcache::Client;
 use service_core::ddb::get_item::{GetItem, GetItemInput};
 use service_core::ddb::query::Query;
@@ -9,7 +10,6 @@ use uuid::Uuid;
 use validator::validate_email;
 use zeroize::Zeroize;
 
-use crate::svc::{AuthenticateInput, AuthenticateOutput};
 use crate::user_account::{verify_password, UserAccount};
 use crate::utils::account::account_key_from_email;
 use crate::{Context, MemcacheConnPool};

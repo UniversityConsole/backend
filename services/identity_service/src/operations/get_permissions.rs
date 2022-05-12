@@ -1,3 +1,4 @@
+use identity_service::pb::{GetPermissionsInput, GetPermissionsOutput};
 use serde::{Deserialize, Serialize};
 use service_core::ddb::get_item::GetItem;
 use service_core::ddb::query::Query;
@@ -5,7 +6,6 @@ use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use uuid::Uuid;
 
-use crate::svc::{GetPermissionsInput, GetPermissionsOutput};
 use crate::user_account::PermissionsDocument;
 use crate::utils::permissions::{get_permissions_from_ddb, GetPermissionsFromDdbError};
 use crate::Context;

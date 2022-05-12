@@ -1,7 +1,9 @@
-
+use service_core::resource_access::AccessKind as AccessKindModel;
 use thiserror::Error;
 
-tonic::include_proto!("identity_service");
+use super::identity_service::access_request::AccessKind as AccessKindPb;
+use super::identity_service::AccessRequest;
+
 
 #[derive(Debug, Error)]
 pub enum AccessRequestParseError {
@@ -16,7 +18,6 @@ impl TryFrom<AccessRequest> for service_core::resource_access::AccessRequest {
     type Error = AccessRequestParseError;
 
     fn try_from(model: AccessRequest) -> Result<Self, Self::Error> {
-        use policy_statement::AccessKind as AccessKindModel;
         use service_core::resource_access::string_interop::compiler::from_string;
         use service_core::resource_access::AccessKind;
 
@@ -39,5 +40,17 @@ impl TryFrom<AccessRequest> for service_core::resource_access::AccessRequest {
                 AccessKind::Query
             },
         })
+    }
+}
+
+impl From<service_core::resource_access::AccessRequest> for AccessRequest {
+    fn from(val: service_core::resource_access::AccessRequest) -> Self {
+        AccessRequest {
+            access_kind: match val.kind {
+                AccessKindModel::Query => AccessKindPb::Query,
+                AccessKindModel::Mutation => AccessKindPb::Mutation,
+            } as i32,
+            paths: val.paths.into_iter().map(|v| v.to_string()).collect(),
+        }
     }
 }

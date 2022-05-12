@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use async_graphql::{extensions, ServerError};
+use identity_service::pb::AuthorizeInput;
 use service_core::resource_access::graphql_interop::parser::from_document;
 use tracing_futures::Instrument;
 
-use crate::integration::identity_service::client::AuthorizeInput;
 use crate::integration::identity_service::schema::GraphQLError;
 use crate::integration::identity_service::IdentityServiceRef;
 use crate::schema::authorization::Authorization;

@@ -1,3 +1,5 @@
+use identity_service::pb::conversion::AccessRequestParseError;
+use identity_service::pb::{AuthorizeInput, AuthorizeOutput};
 use service_core::ddb::get_item::GetItem;
 use service_core::ddb::query::Query;
 use service_core::endpoint_error::EndpointError;
@@ -8,7 +10,6 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::operations::authorize::AuthorizeError::InvalidResourcePath;
-use crate::svc::{AccessRequestParseError, AuthorizeInput, AuthorizeOutput};
 use crate::user_account::PermissionsDocument;
 use crate::utils::permissions::{
     get_access_path_set, get_permissions_from_ddb, merge_access_request_paths, GetPermissionsFromDdbError,

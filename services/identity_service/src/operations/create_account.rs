@@ -1,10 +1,10 @@
+use identity_service::pb::{CreateAccountInput, CreateAccountOutput};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
 use zeroize::Zeroize;
 
-use crate::svc::{CreateAccountInput, CreateAccountOutput};
 use crate::user_account::{hash_password, repository, UserAccount};
-use crate::{AccountsRepository};
+use crate::AccountsRepository;
 
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]

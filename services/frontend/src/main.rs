@@ -8,15 +8,13 @@ use async_graphql::{Context, EmptySubscription, Object, Response, Schema, Server
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
 use frontend::graphql::extension::Authorizer;
-use frontend::integration::identity_service::client::identity_service_client::IdentityServiceClient;
-use frontend::integration::identity_service::client::{
-    AuthenticateInput, DescribeAccountInput, GenerateAccessTokenInput, ListAccountsInput,
-};
 use frontend::integration::identity_service::schema::{
     AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
 };
 use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
+use identity_service::pb::identity_service_client::IdentityServiceClient;
+use identity_service::pb::{AuthenticateInput, DescribeAccountInput, GenerateAccessTokenInput, ListAccountsInput};
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
 use thiserror::Error;

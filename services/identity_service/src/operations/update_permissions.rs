@@ -1,5 +1,6 @@
 use aws_sdk_dynamodb::model::AttributeValue;
 use common_macros::hash_map;
+use identity_service::pb::{UpdatePermissionsInput, UpdatePermissionsOutput};
 use service_core::ddb::query::Query;
 use service_core::ddb::update_item::{UpdateItem, UpdateItemInput};
 use service_core::endpoint_error::EndpointError;
@@ -7,7 +8,6 @@ use service_core::operation_error::OperationError;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::svc::{UpdatePermissionsInput, UpdatePermissionsOutput};
 use crate::user_account::PermissionsDocument;
 use crate::utils::account::{account_key_from_id, AccountKeyFromIdError};
 use crate::utils::validation::validate_resource_paths;
