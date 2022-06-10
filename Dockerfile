@@ -1,15 +1,17 @@
-FROM arm64v8/rust:1.59-alpine3.15
+FROM arm64v8/ubuntu:22.04 as UBUNTU
 
-# Adding the nightly toolchain
-RUN rustup toolchain install nightly-2022-03-23 -t aarch64-unknown-linux-musl && \
-    rustup default nightly-2022-03-23 && \
-    rustup component add rustfmt
+RUN apt update -y && apt upgrade -y && apt install curl -y
 
+# Add rustup and default nightly toolchain
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile default --default-toolchain nightly -c rustfmt && \
+    chmod -R a+w $RUSTUP_HOME $CARGO_HOME && \
+    rustup --version; \
+    cargo --version; \
+    rustc --version
 
-# Packages needed for building services
-RUN apk update
-RUN apk add --no-cache make python3 musl-dev openssl-dev protoc docker docker-cli bash aws-cli
-
-# Prepare CodeBuild for building Docker images
-COPY .codebuild/dockerd-entrypoint.sh /usr/local/bin/
-ENTRYPOINT ["/usr/local/bin/dockerd-entrypoint.sh"]
+## Packages needed for building services
+RUN apt install -y gcc libssl-dev pkg-config
+RUN cargo install --force cargo-make
