@@ -1,4 +1,7 @@
-# uc-service
+# UniversityConsole Backend
+
+[![CircleCI](https://circleci.com/gh/UniversityConsole/backend/tree/mainline.svg?style=shield&circle-token=5933c53936af57bd9ce9aebf3baedfcf1464fde5)](https://circleci.com/gh/UniversityConsole/backend/tree/mainline)
+
 
 This repository holds the source code for all the backend services in the University Console system.
 
