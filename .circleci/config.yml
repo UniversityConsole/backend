@@ -2,8 +2,10 @@ version: 2.1
 
 jobs:
     prepare-builder:
+        machine:
+            image: ubuntu-2204:2022.04.2
         docker:
-            - image: docker:17.09.0-ce
+            - image: docker:20.10.17-git
               auth:
                   username: $DOCKERHUB_USERNAME
                   password: $DOCKERHUB_TOKEN
@@ -11,7 +13,8 @@ jobs:
             BUILDER_IMAGE_NAME: vicbarbu/uc-builder
         steps:
             - checkout
-            - setup_remote_docker
+            - setup_remote_docker:
+                  version: 20.10.14
             - run:
                   name: Prepare builder image
                   command: |
