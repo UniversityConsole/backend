@@ -2,8 +2,6 @@ version: 2.1
 
 jobs:
     prepare-builder:
-        machine:
-            image: ubuntu-2204:2022.04.2
         docker:
             - image: docker:20.10.17-git
               auth:
