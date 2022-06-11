@@ -13,5 +13,5 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile defa
     rustc --version
 
 ## Packages needed for building services
-RUN apt-get install -y gcc libssl-dev pkg-config
+RUN apt-get install -y gcc libssl-dev pkg-config docker
 RUN cargo install --force cargo-make
