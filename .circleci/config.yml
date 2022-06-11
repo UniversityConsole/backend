@@ -25,10 +25,39 @@ jobs:
                           echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
                           docker push $BUILDER_IMAGE_NAME
                       fi
+    build-identity-service:
+        docker:
+            - image: vicbarbu/uc-builder:latest
+              auth:
+                  username: $DOCKERHUB_USERNAME
+                  password: $DOCKERHUB_TOKEN
+        environment:
+            UC_IMAGE_TAG: vicbarbu/uc-identity-service
+        steps:
+            - checkout
+            - setup_remote_docker:
+                  version: 20.10.14
+                  docker_layer_caching: true
+            - run:
+                  name: Build Backend
+                  command: |
+                      cargo make -v service build identity_service
+            - deploy:
+                  name: Push to DockerHub
+                  command: |
+                      if [ "${CIRCLE_BRANCH}" == "mainline" ]; then
+                          echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
+                          docker push $UC_IMAGE_TAG
+                      fi
 
 workflows:
-    prepare-builder:
+    build-backend:
         jobs:
             - prepare-builder:
+                  context:
+                      - uc
+            - build-identity-service:
+                  requires:
+                      - prepare-builder
                   context:
                       - uc

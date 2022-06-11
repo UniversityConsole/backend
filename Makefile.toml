@@ -1,0 +1,67 @@
+[config]
+default_to_workspace = false
+
+[env]
+UC_BUILD_DIR = "make_build"
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.service]
+private = false
+extend = "subcommand"
+env = { "SUBCOMMAND_PREFIX" = "service" }
+
+[tasks.subcommand]
+private = true
+script = '''
+#!@duckscript
+
+cm_run_task ${SUBCOMMAND_PREFIX}_${1}
+'''
+
+[tasks.service_prebuild]
+private = true
+script = [
+    "mkdir -p ${UC_BUILD_DIR}",
+]
+
+[tasks.service_build]
+private = true
+run_task = "image_build"
+dependencies = ["build", "service_prebuild", "service_build_mv_exec"]
+
+[tasks.service_build_mv_exec]
+private = true
+script = [
+    "mv ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/release/${2} ${UC_BUILD_DIR}/",
+]
+
+[tasks.image_build]
+private = true
+run_task = [
+    { name = "image_build_dockerd", condition = { env_not_set = ["UC_USE_CONTAINERD"] } },
+    { name = "image_build_containerd", condition = { env_set = ["UC_USE_CONTAINERD"] } },
+]
+
+[tasks.image_build_dockerd]
+private = true
+script = '''
+docker build \
+    -t ${UC_IMAGE_TAG} \
+    -f .circleci/images/service.dockerfile \
+    --build-arg SERVICE_NAME=${2} \
+    ${UC_BUILD_DIR}
+'''
+
+[tasks.image_build_containerd]
+private = true
+condition = { env_set = ["UC_USE_CONTAINERD"] }
+script = '''
+nerdctl -n k8s.io build \
+    -t ${UC_IMAGE_TAG} \
+    -f .circleci/images/service.dockerfile \
+    --build-arg SERVICE_NAME=${2} \
+    ${UC_BUILD_DIR}
+'''
