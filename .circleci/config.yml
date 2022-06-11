@@ -27,4 +27,6 @@ jobs:
 workflows:
     prepare-builder:
         jobs:
-            - prepare-builder
+            - prepare-builder:
+                  context:
+                      - uc
