@@ -1,0 +1,30 @@
+version: 2.1
+
+jobs:
+    prepare-builder:
+        docker:
+            - image: 20-git
+              auth:
+                  username: $DOCKERHUB_USERNAME
+                  password: $DOCKERHUB_TOKEN
+        environment:
+            BUILDER_IMAGE_NAME: vicbarbu/uc-builder
+        steps:
+            - checkout
+            - setup_remote_docker
+            - run:
+                  name: Prepare builder image
+                  command: |
+                      docker build -t $BUILDER_IMAGE_NAME .
+            - deploy:
+                  name: Push to DockerHub
+                  command: |
+                      if [ "${CIRCLE_BRANCH}" == "mainline" ]; then
+                          echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
+                          docker push $BUILDER_IMAGE_NAME
+                      fi
+
+workflows:
+    prepare-builder:
+        jobs:
+            - prepare-builder
