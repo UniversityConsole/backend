@@ -1,6 +1,6 @@
 FROM ubuntu:22.04 as UBUNTU
 
-RUN apt update -y && apt upgrade -y && apt install curl -y
+RUN apt-get update -y && apt-get upgrade -y && apt-get install curl -y
 
 # Add rustup and default nightly toolchain
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -13,5 +13,5 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile defa
     rustc --version
 
 ## Packages needed for building services
-RUN apt install -y gcc libssl-dev pkg-config
+RUN apt-get install -y gcc libssl-dev pkg-config
 RUN cargo install --force cargo-make
