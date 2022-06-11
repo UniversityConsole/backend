@@ -3,7 +3,7 @@ version: 2.1
 jobs:
     prepare-builder:
         docker:
-            - image: docker:20-git
+            - image: docker:17.09.0-ce
               auth:
                   username: $DOCKERHUB_USERNAME
                   password: $DOCKERHUB_TOKEN
