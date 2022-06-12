@@ -1,4 +1,4 @@
-FROM arm64v8/ubuntu:22.04 as UBUNTU
+FROM ubuntu:22.04 as UBUNTU
 
 RUN apt-get update -y && apt-get upgrade -y
 RUN apt-get install -y \
