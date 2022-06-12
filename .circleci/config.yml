@@ -49,6 +49,30 @@ jobs:
                           echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
                           docker push $UC_IMAGE_TAG
                       fi
+    build-frontend:
+        docker:
+            - image: vicbarbu/uc-builder:latest
+              auth:
+                  username: $DOCKERHUB_USERNAME
+                  password: $DOCKERHUB_TOKEN
+        environment:
+            UC_IMAGE_TAG: vicbarbu/uc-frontend
+        steps:
+            - checkout
+            - setup_remote_docker:
+                  version: 20.10.14
+                  docker_layer_caching: true
+            - run:
+                  name: Build Backend
+                  command: |
+                      cargo make service build frontend
+            - deploy:
+                  name: Push to DockerHub
+                  command: |
+                      if [ "${CIRCLE_BRANCH}" == "mainline" ]; then
+                          echo $DOCKERHUB_TOKEN | docker login -u $DOCKERHUB_USERNAME --password-stdin
+                          docker push $UC_IMAGE_TAG
+                      fi
 
 workflows:
     build-backend:
@@ -61,3 +85,9 @@ workflows:
                       - prepare-builder
                   context:
                       - uc
+            - build-frontend:
+                  requires:
+                      - prepare-builder
+                  context:
+                      - uc
+
