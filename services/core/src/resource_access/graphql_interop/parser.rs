@@ -1,7 +1,7 @@
 use async_graphql_parser::types::{
     DocumentOperations, ExecutableDocument, OperationDefinition, OperationType, Selection,
 };
-use async_graphql_value::Value;
+use async_graphql_value::{ConstValue, Value, Variables};
 use thiserror::Error;
 
 use crate::resource_access::types::{
@@ -25,11 +25,17 @@ pub enum CompileError {
     #[error("Argument {0} is not supported: {1}.")]
     UnsupportedArgument(String, String),
 
+    #[error("Variable argument not allowed: {0}.")]
+    VariableArgumentNotAllowed(String),
+
+    #[error("Variable {0} referenced by argument {1} is unknown.")]
+    UnknownVariable(String, String),
+
     #[error("Cannot select subfields of a match-any.")]
     CannotAppendToAny,
 }
 
-pub fn from_document(document: &ExecutableDocument) -> Result<Vec<AccessRequest>, CompileError> {
+pub fn from_document(document: &ExecutableDocument, variables: &Variables) -> Result<Vec<AccessRequest>, CompileError> {
     match &document.operations {
         DocumentOperations::Single(operation) => {
             let operation = &operation.node;
@@ -40,14 +46,14 @@ pub fn from_document(document: &ExecutableDocument) -> Result<Vec<AccessRequest>
 
             Ok(vec![AccessRequest {
                 kind: access_kind,
-                paths: from_operation(operation)?,
+                paths: from_operation(operation, &variables)?,
             }])
         }
         DocumentOperations::Multiple(_) => Err(CompileError::MultiOperationsNotSupported),
     }
 }
 
-fn from_operation(operation: &OperationDefinition) -> Result<Vec<PathNode>, CompileError> {
+fn from_operation(operation: &OperationDefinition, variables: &Variables) -> Result<Vec<PathNode>, CompileError> {
     let mut path_set = PathSet::default();
     operation
         .selection_set
@@ -55,11 +61,16 @@ fn from_operation(operation: &OperationDefinition) -> Result<Vec<PathNode>, Comp
         .items
         .iter()
         .map(|i| &i.node)
-        .try_for_each(|node| append_path(&mut path_set, vec![], node))?;
+        .try_for_each(|node| append_path(&mut path_set, vec![], node, &variables))?;
     Ok(path_set.into_paths())
 }
 
-fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selection) -> Result<(), CompileError> {
+fn append_path(
+    tree: &mut PathSet,
+    mut stack: Vec<Segment>,
+    selection: &Selection,
+    variables: &Variables,
+) -> Result<(), CompileError> {
     match selection {
         Selection::Field(field) => {
             let field = &field.node;
@@ -70,14 +81,7 @@ fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selectio
                     .iter()
                     .map(|(name, val)| {
                         let name = name.node.to_string();
-                        let value = match &val.node {
-                            Value::String(s) => ArgumentValue::StringLiteral(s.clone()),
-                            Value::Number(n) => ArgumentValue::IntegerLiteral(
-                                n.as_i64().ok_or(CompileError::UnsupportedNumericLiteral)?,
-                            ),
-                            Value::Boolean(b) => ArgumentValue::BoolLiteral(*b),
-                            _ => return Err(CompileError::UnsupportedArgument(name, val.to_string())),
-                        };
+                        let value = parse_argument_value(&name, &val.node, variables)?;
 
                         Ok(Argument { name, value })
                     })
@@ -93,12 +97,56 @@ fn append_path(tree: &mut PathSet, mut stack: Vec<Segment>, selection: &Selectio
             }
 
             for sub_field in sub_fields {
-                append_path(tree, stack.clone(), &sub_field.node)?;
+                append_path(tree, stack.clone(), &sub_field.node, &variables)?;
             }
 
             Ok(())
         }
         _ => Err(CompileError::unsupported_selection_kind(".")),
+    }
+}
+
+/// Parses argument values from GraphQL Value to ArgumentValue type.
+///
+/// # Params
+/// * `name` - the name of the argument to be parsed
+/// * `value` - the value of the argument as received from the GraphQL parser
+/// * `variables` - the variables known for this GraphQL request
+///
+/// # Returns
+/// Returns a parsed argument value, or a compilation error.
+///
+/// # Limitations
+/// * This parser only supports `i64` for numeric literals. It does not support `u64` or `f64`.
+/// * Only string, number (with the above limitation) and boolean types are supported for arguments.
+/// * If the argument references a variable, the parser will try to replace that. If the variable is
+///   of an unsupported type, the resulting argument value will be a wildcard.
+fn parse_argument_value(name: &str, value: &Value, variables: &Variables) -> Result<ArgumentValue, CompileError> {
+    match value {
+        Value::String(s) => Ok(ArgumentValue::StringLiteral(s.clone())),
+        Value::Number(n) => Ok(ArgumentValue::IntegerLiteral(
+            n.as_i64().ok_or(CompileError::UnsupportedNumericLiteral)?,
+        )),
+        Value::Boolean(b) => Ok(ArgumentValue::BoolLiteral(*b)),
+        Value::Variable(var_name) => {
+            if let Some(var_value) = variables.get(var_name) {
+                match var_value {
+                    ConstValue::Number(_) | ConstValue::String(_) | ConstValue::Boolean(_) => {
+                        parse_argument_value(name, &var_value.clone().into_value(), &variables)
+                    }
+                    _ => {
+                        tracing::debug!(
+                            arg_name = name,
+                            "Converted argument value to a wildcard, since its type is not supported."
+                        );
+                        Ok(ArgumentValue::Wildcard)
+                    }
+                }
+            } else {
+                Err(CompileError::UnknownVariable(var_name.to_string(), name.to_string()))
+            }
+        }
+        _ => Err(CompileError::UnsupportedArgument(name.to_string(), value.to_string())),
     }
 }
 
@@ -110,6 +158,8 @@ impl CompileError {
 
 #[cfg(test)]
 mod tests {
+    use async_graphql_value::Name;
+
     use super::*;
 
     #[test]
@@ -117,13 +167,60 @@ mod tests {
         use async_graphql_parser::parse_query;
 
         let document = parse_query("{ foo { bar baz } apiVersion }").expect("parse failed");
-        let access_requests = from_document(&document).expect("failed compiling access requests");
+        let access_requests =
+            from_document(&document, &Variables::default()).expect("failed compiling access requests");
         assert_eq!(access_requests.len(), 1);
 
         let request = access_requests.first().unwrap();
         assert_eq!(request.kind, AccessKind::Query);
 
         let expected_paths = ["apiVersion", "foo::{bar, baz}"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
+    }
+
+    #[test]
+    fn query_with_variables() {
+        use async_graphql_parser::parse_query;
+
+        let document = parse_query("{ account(id: $id) }").expect("parse failed");
+        let variables = {
+            let mut v = Variables::default();
+            v.insert(Name::new("id"), ConstValue::String("foo".to_string()));
+            v
+        };
+        let access_requests = from_document(&document, &variables).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
+
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Query);
+
+        let expected_paths = ["account(id: \"foo\")"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
+    }
+
+    #[test]
+    fn query_with_unsupported_variable_type() {
+        use async_graphql_parser::parse_query;
+        use serde_json::Number;
+
+        let document = parse_query("{ account(id: $id) }").expect("parse failed");
+        let variables = {
+            let mut v = Variables::default();
+            // Floats are unsupported.
+            v.insert(Name::new("id"), ConstValue::Enum(Name::new("TEST")));
+            v
+        };
+        let access_requests = from_document(&document, &variables).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
+
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Query);
+
+        let expected_paths = ["account(id: *)"];
         for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
             assert_eq!(path.to_string(), expected_path.to_string());
         }

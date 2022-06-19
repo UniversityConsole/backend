@@ -31,7 +31,8 @@ impl extensions::Extension for AuthorizerExtension {
     ) -> async_graphql::ServerResult<async_graphql_parser::types::ExecutableDocument> {
         let document = next.run(ctx, query, variables).await?;
 
-        let mut access_requests = from_document(&document).map_err(|e| ServerError::new(e.to_string(), None))?;
+        let mut access_requests =
+            from_document(&document, &variables).map_err(|e| ServerError::new(e.to_string(), None))?;
         // FIXME Add support for multi-operation documents.
         let access_request = access_requests
             .pop()

@@ -2670,6 +2670,7 @@ dependencies = [
  "nom",
  "rstest",
  "serde",
+ "serde_json",
  "thiserror",
  "tonic",
  "tracing",
