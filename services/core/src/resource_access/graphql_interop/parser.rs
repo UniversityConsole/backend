@@ -25,9 +25,6 @@ pub enum CompileError {
     #[error("Argument {0} is not supported: {1}.")]
     UnsupportedArgument(String, String),
 
-    #[error("Variable argument not allowed: {0}.")]
-    VariableArgumentNotAllowed(String),
-
     #[error("Variable {0} referenced by argument {1} is unknown.")]
     UnknownVariable(String, String),
 
@@ -203,9 +200,31 @@ mod tests {
     }
 
     #[test]
+    fn query_with_input_object() {
+        use async_graphql_parser::parse_query;
+        use serde_json::json;
+
+        let document = parse_query("{ createAccount(params: $params) { id } }").expect("parse failed");
+        let variables = Variables::from_json(json!({
+            "params": {
+                "foo": "bar",
+            }
+        }));
+        let access_requests = from_document(&document, &variables).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
+
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Query);
+
+        let expected_paths = ["createAccount(params: *)::id"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
+    }
+
+    #[test]
     fn query_with_unsupported_variable_type() {
         use async_graphql_parser::parse_query;
-        use serde_json::Number;
 
         let document = parse_query("{ account(id: $id) }").expect("parse failed");
         let variables = {
