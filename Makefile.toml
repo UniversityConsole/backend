@@ -2,7 +2,7 @@
 default_to_workspace = false
 
 [env]
-UC_BUILD_DIR = "make_build"
+UC_BUILD_DIR = "build"
 
 [tasks.build]
 command = "cargo"
