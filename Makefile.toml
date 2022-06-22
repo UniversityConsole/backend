@@ -35,7 +35,7 @@ dependencies = ["build", "service_prebuild", "service_build_mv_exec"]
 [tasks.service_build_mv_exec]
 private = true
 script = [
-    "rm ${UC_BUILD_DIR}/${2}",
+    "rm -f ${UC_BUILD_DIR}/${2}",
     "mv ${CARGO_MAKE_CRATE_TARGET_DIRECTORY}/release/${2} ${UC_BUILD_DIR}/",
 ]
 
