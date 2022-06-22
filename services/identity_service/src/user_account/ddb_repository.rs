@@ -162,7 +162,6 @@ impl<T: ThreadSafeDdbClient> AccountsRepository for DdbAccountsRepository<T> {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-#[serde(deny_unknown_fields)]
 struct AccountIdIndexProjection {
     account_id: Uuid,
     email: String,

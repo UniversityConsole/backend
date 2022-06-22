@@ -69,7 +69,7 @@ impl AccountAttributes {
 
         match self {
             Self::Password => hash_set! { Password },
-            Self::Profile => hash_set! { AccountId, Email, FirstName, LastName, Discoverable },
+            Self::Profile => hash_set! { AccountId, Email, FirstName, LastName, Discoverable, AccountState },
             Self::Permissions => hash_set! { PermissionsDocument },
             Self::Specific(attrs) => attrs.iter().copied().collect(),
         }

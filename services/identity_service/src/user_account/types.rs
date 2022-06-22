@@ -1,6 +1,7 @@
 use std::convert::From;
 use std::fmt::{Display, Formatter};
 
+use identity_service::pb::account::State as StateModel;
 use identity_service::pb::PermissionsDocument as PermissionsDocumentModel;
 use serde::{Deserialize, Serialize};
 use service_core::resource_access::AccessKind;
@@ -31,9 +32,19 @@ pub struct UserAccount {
     #[builder(default = true)]
     pub discoverable: bool,
 
+    #[builder(default = AccountState::PendingActivation)]
+    pub account_state: AccountState,
+
     #[serde(default)]
     #[builder(default)]
     pub permissions_document: PermissionsDocument,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum AccountState {
+    PendingActivation,
+    Active,
+    Deactivated,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
@@ -59,9 +70,26 @@ pub enum AccountAttr {
     LastName,
     Password,
     Discoverable,
+    AccountState,
     PermissionsDocument,
 }
 
+
+impl Default for AccountState {
+    fn default() -> Self {
+        AccountState::PendingActivation
+    }
+}
+
+impl From<AccountState> for StateModel {
+    fn from(s: AccountState) -> Self {
+        match s {
+            AccountState::PendingActivation => StateModel::PendingActivation,
+            AccountState::Active => StateModel::Active,
+            AccountState::Deactivated => StateModel::Deactivated,
+        }
+    }
+}
 
 impl From<PermissionsDocument> for PermissionsDocumentModel {
     fn from(val: PermissionsDocument) -> PermissionsDocumentModel {

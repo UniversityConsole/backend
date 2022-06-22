@@ -2,6 +2,7 @@ use aws_sdk_dynamodb::model::AttributeValue;
 use base64;
 use common_macros::hash_map;
 use identity_service::pb;
+use identity_service::pb::account::State as StateModel;
 use identity_service::pb::{ListAccountsInput, ListAccountsOutput};
 use serde_ddb::from_hashmap;
 use service_core::ddb::scan::{Scan, ScanInput};
@@ -18,7 +19,14 @@ pub(crate) async fn list_accounts(
     let page_size = if input.page_size > 0 { input.page_size } else { 32 };
 
     // TODO Find a way not to hard-code this.
-    let projection_fields = ["AccountId", "Email", "FirstName", "LastName", "Discoverable"];
+    let projection_fields = [
+        "AccountId",
+        "Email",
+        "FirstName",
+        "LastName",
+        "Discoverable",
+        "AccountState",
+    ];
     let projection_expression = projection_fields.join(",");
     let page_start = if let Some(v) = &input.starting_token {
         const PARSE_ERR_MSG: &str = "Could not parse StartingToken.";
@@ -95,6 +103,7 @@ pub(crate) async fn list_accounts(
                     first_name: data.first_name,
                     last_name: data.last_name,
                     discoverable: data.discoverable,
+                    account_state: StateModel::from(data.account_state) as i32,
                 })
                 .collect()
         }

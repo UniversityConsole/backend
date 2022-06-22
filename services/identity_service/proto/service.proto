@@ -55,11 +55,18 @@ message ListAccountsOutput {
 }
 
 message Account {
+    enum State {
+        PENDING_ACTIVATION = 0;
+        ACTIVE = 1;
+        DEACTIVATED = 2;
+    }
+
     string account_id = 1;
     string email = 2;
     string first_name = 3;
     string last_name = 4;
     bool discoverable = 5;
+    State account_state = 6;
 }
 
 
