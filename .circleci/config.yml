@@ -42,6 +42,10 @@ jobs:
                   name: Build Backend
                   command: |
                       cargo make service build identity_service
+            - test:
+                  name: Test Backend
+                  command: |
+                      cargo test
             - deploy:
                   name: Push to DockerHub
                   command: |

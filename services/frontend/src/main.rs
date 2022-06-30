@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io;
+use std::{env, io};
 
 use actix_web::{guard, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use async_graphql::extensions::Tracing;
@@ -22,6 +22,9 @@ use tracing_futures::Instrument;
 
 #[derive(Debug, Error)]
 pub enum InitServiceError {
+    #[error("Environment variable {0} is missing.")]
+    MissingEnv(&'static str),
+
     #[error("Cannot acquire client.")]
     CannotAcquireClient,
 
@@ -94,7 +97,10 @@ async fn index_playground() -> HttpResponse {
 
 #[tracing::instrument]
 pub async fn create_schema_with_context() -> std::result::Result<AppSchema, InitServiceError> {
-    let identity_service_client = IdentityServiceClient::connect("http://127.0.0.1:8080")
+    const IDENTITY_SERVICE_ENDPOINT_VAR: &str = "IDENTITY_SERVICE_ENDPOINT";
+    let identity_service_endpoint = env::var(IDENTITY_SERVICE_ENDPOINT_VAR)
+        .map_err(|_| InitServiceError::MissingEnv(IDENTITY_SERVICE_ENDPOINT_VAR))?;
+    let identity_service_client = IdentityServiceClient::connect(identity_service_endpoint)
         .await
         .map_err(|_| InitServiceError::CannotAcquireClient)?;
 

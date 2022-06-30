@@ -100,6 +100,8 @@ impl Add for AccountAttributes {
 
 #[cfg(test)]
 mod test_account_attributes {
+    use std::collections::HashSet;
+
     use crate::user_account::repository::AccountAttributes;
     use crate::user_account::types::AccountAttr;
 
@@ -113,8 +115,10 @@ mod test_account_attributes {
 
         let AccountAttributes::Specific(attrs) = c else { unreachable!() };
         assert_eq!(
-            attrs.as_slice(),
-            &[AccountAttr::Password, AccountAttr::PermissionsDocument]
+            attrs.into_iter().collect::<HashSet<_>>(),
+            [AccountAttr::Password, AccountAttr::PermissionsDocument]
+                .into_iter()
+                .collect::<HashSet<_>>()
         );
     }
 }

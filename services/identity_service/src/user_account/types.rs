@@ -81,6 +81,12 @@ impl Default for AccountState {
     }
 }
 
+impl Display for AccountState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", &self)
+    }
+}
+
 impl From<AccountState> for StateModel {
     fn from(s: AccountState) -> Self {
         match s {
@@ -155,7 +161,8 @@ mod tests {
             "FirstName": "John",
             "LastName": "Doe",
             "Password": "super_secret",
-            "Discoverable": true
+            "Discoverable": true,
+            "AccountState": "PendingActivation"
         })
         .to_string();
 
@@ -193,6 +200,7 @@ mod tests {
         doc.insert("FirstName".to_string(), AttributeValue::S("John".to_string()));
         doc.insert("LastName".to_string(), AttributeValue::S("Doe".to_string()));
         doc.insert("Discoverable".to_string(), AttributeValue::Bool(true));
+        doc.insert("AccountState".to_string(), AttributeValue::S("Active".to_string()));
 
         let expected = UserAccount {
             account_id: Uuid::nil(),
@@ -201,6 +209,7 @@ mod tests {
             last_name: "Doe".to_string(),
             password: "".to_string(),
             discoverable: true,
+            account_state: AccountState::Active,
             ..Default::default()
         };
         let actual = serde_ddb::from_hashmap::<UserAccount, _>(doc).unwrap();
