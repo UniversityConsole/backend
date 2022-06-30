@@ -20,7 +20,6 @@ pub enum AccountKeyFromIdError {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-#[serde(deny_unknown_fields)]
 struct AccountIdIndexProjection {
     account_id: Uuid,
     email: String,

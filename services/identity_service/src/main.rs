@@ -13,8 +13,8 @@ use identity_service::pb::identity_service_server::{IdentityService, IdentitySer
 use identity_service::pb::{
     AuthenticateInput, AuthenticateOutput, AuthorizeInput, AuthorizeOutput, CreateAccountInput, CreateAccountOutput,
     DescribeAccountInput, DescribeAccountOutput, GenerateAccessTokenInput, GenerateAccessTokenOutput,
-    GetPermissionsInput, GetPermissionsOutput, ListAccountsInput, ListAccountsOutput, UpdatePermissionsInput,
-    UpdatePermissionsOutput,
+    GetPermissionsInput, GetPermissionsOutput, ListAccountsInput, ListAccountsOutput, UpdateAccountStateInput,
+    UpdateAccountStateOutput, UpdatePermissionsInput, UpdatePermissionsOutput,
 };
 use log::LevelFilter;
 use memcache::Url;
@@ -32,6 +32,7 @@ use tonic::{Request, Response, Status};
 use crate::context::ContextKey;
 use crate::operations::authenticate::authenticate;
 use crate::operations::generate_access_token::generate_access_token;
+use crate::operations::update_account_state::update_account_state;
 use crate::user_account::ddb_repository::DdbAccountsRepository;
 use crate::user_account::AccountsRepository;
 use crate::utils::memcache::MemcacheConnPool;
@@ -108,6 +109,16 @@ impl<T: 'static + ThreadSafeAccountsRepository> IdentityService for IdentityServ
         request: Request<UpdatePermissionsInput>,
     ) -> Result<Response<UpdatePermissionsOutput>, Status> {
         update_permissions(&self.ctx, &self.ctx.dynamodb_adapter, request.get_ref())
+            .await
+            .map(Response::new)
+            .map_err(|err| err.into())
+    }
+
+    async fn update_account_state(
+        &self,
+        request: Request<UpdateAccountStateInput>,
+    ) -> Result<Response<UpdateAccountStateOutput>, Status> {
+        update_account_state(&self.ctx, &self.ctx.dynamodb_adapter, request.into_inner())
             .await
             .map(Response::new)
             .map_err(|err| err.into())

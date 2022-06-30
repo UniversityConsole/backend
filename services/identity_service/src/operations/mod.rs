@@ -5,4 +5,5 @@ pub mod describe_account;
 pub mod generate_access_token;
 pub mod get_permissions;
 pub mod list_accounts;
+pub mod update_account_state;
 pub mod update_permissions;

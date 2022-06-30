@@ -1,8 +1,7 @@
 use std::convert::From;
 use std::fmt::{Display, Formatter};
 
-use identity_service::pb::account::State as StateModel;
-use identity_service::pb::PermissionsDocument as PermissionsDocumentModel;
+use identity_service::pb::{AccountState as AccountStateModel, PermissionsDocument as PermissionsDocumentModel};
 use serde::{Deserialize, Serialize};
 use service_core::resource_access::AccessKind;
 use typed_builder::TypedBuilder;
@@ -87,12 +86,25 @@ impl Display for AccountState {
     }
 }
 
-impl From<AccountState> for StateModel {
+impl From<AccountState> for AccountStateModel {
     fn from(s: AccountState) -> Self {
         match s {
-            AccountState::PendingActivation => StateModel::PendingActivation,
-            AccountState::Active => StateModel::Active,
-            AccountState::Deactivated => StateModel::Deactivated,
+            AccountState::PendingActivation => AccountStateModel::PendingActivation,
+            AccountState::Active => AccountStateModel::Active,
+            AccountState::Deactivated => AccountStateModel::Deactivated,
+        }
+    }
+}
+
+impl TryFrom<i32> for AccountState {
+    type Error = ();
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == AccountStateModel::PendingActivation as i32 => Ok(AccountState::PendingActivation),
+            x if x == AccountStateModel::Active as i32 => Ok(AccountState::Active),
+            x if x == AccountStateModel::Deactivated as i32 => Ok(AccountState::Deactivated),
+            _ => Err(()),
         }
     }
 }

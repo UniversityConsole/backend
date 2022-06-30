@@ -9,6 +9,7 @@ service IdentityService {
     rpc DescribeAccount(DescribeAccountInput) returns (DescribeAccountOutput);
     rpc ListAccounts(ListAccountsInput) returns (ListAccountsOutput);
     rpc UpdatePermissions(UpdatePermissionsInput) returns (UpdatePermissionsOutput);
+    rpc UpdateAccountState(UpdateAccountStateInput) returns (UpdateAccountStateOutput);
     rpc GetPermissions(GetPermissionsInput) returns (GetPermissionsOutput);
     rpc Authorize(AuthorizeInput) returns (AuthorizeOutput);
     rpc Authenticate(AuthenticateInput) returns (AuthenticateOutput);
@@ -54,19 +55,19 @@ message ListAccountsOutput {
     repeated Account accounts = 2;
 }
 
-message Account {
-    enum State {
-        PENDING_ACTIVATION = 0;
-        ACTIVE = 1;
-        DEACTIVATED = 2;
-    }
+enum AccountState {
+    PENDING_ACTIVATION = 0;
+    ACTIVE = 1;
+    DEACTIVATED = 2;
+}
 
+message Account {
     string account_id = 1;
     string email = 2;
     string first_name = 3;
     string last_name = 4;
     bool discoverable = 5;
-    State account_state = 6;
+    AccountState account_state = 6;
 }
 
 
@@ -77,6 +78,12 @@ message UpdatePermissionsInput {
 
 message UpdatePermissionsOutput {}
 
+message UpdateAccountStateInput {
+    string account_id = 1;
+    AccountState account_state = 2;
+}
+
+message UpdateAccountStateOutput {}
 
 message GetPermissionsInput {
     string account_id = 1;

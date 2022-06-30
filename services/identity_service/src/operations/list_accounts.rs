@@ -2,8 +2,7 @@ use aws_sdk_dynamodb::model::AttributeValue;
 use base64;
 use common_macros::hash_map;
 use identity_service::pb;
-use identity_service::pb::account::State as StateModel;
-use identity_service::pb::{ListAccountsInput, ListAccountsOutput};
+use identity_service::pb::{AccountState as AccountStateModel, ListAccountsInput, ListAccountsOutput};
 use serde_ddb::from_hashmap;
 use service_core::ddb::scan::{Scan, ScanInput};
 use service_core::endpoint_error::EndpointError;
@@ -103,7 +102,7 @@ pub(crate) async fn list_accounts(
                     first_name: data.first_name,
                     last_name: data.last_name,
                     discoverable: data.discoverable,
-                    account_state: StateModel::from(data.account_state) as i32,
+                    account_state: AccountStateModel::from(data.account_state) as i32,
                 })
                 .collect()
         }

@@ -1,6 +1,5 @@
 use identity_service::pb;
-use identity_service::pb::account::State as StateModel;
-use identity_service::pb::{DescribeAccountInput, DescribeAccountOutput};
+use identity_service::pb::{AccountState as AccountStateModel, DescribeAccountInput, DescribeAccountOutput};
 use serde::{Deserialize, Serialize};
 use service_core::endpoint_error::EndpointError;
 use service_core::operation_error::OperationError;
@@ -47,7 +46,7 @@ pub(crate) async fn describe_account(
             first_name: user_account.first_name,
             last_name: user_account.last_name,
             discoverable: user_account.discoverable,
-            account_state: StateModel::from(user_account.account_state) as i32,
+            account_state: AccountStateModel::from(user_account.account_state) as i32,
         }),
     })
 }
