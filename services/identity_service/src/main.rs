@@ -1,4 +1,5 @@
-#![feature(never_type, let_else, once_cell)]
+#![feature(never_type, let_else)]
+#![feature(once_cell)]
 
 extern crate core;
 

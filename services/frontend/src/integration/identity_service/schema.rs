@@ -1,4 +1,4 @@
-use async_graphql::{Context, Enum, Object, ServerError, SimpleObject, ID};
+use async_graphql::{Context, Enum, InputObject, Object, ServerError, SimpleObject, ID};
 use identity_service::pb::GetPermissionsInput;
 use thiserror::Error;
 use tracing_futures::Instrument;
@@ -35,6 +35,19 @@ pub struct AuthenticationOutput {
 pub struct GenerateAccessTokenOutput {
     pub access_token: String,
     pub refresh_token: String,
+}
+
+#[derive(InputObject)]
+pub struct CreateAccountParams {
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub password: String,
+}
+
+#[derive(Clone, SimpleObject)]
+pub struct CreateAccountOutput {
+    pub account_id: String,
 }
 
 #[derive(Debug, Error)]

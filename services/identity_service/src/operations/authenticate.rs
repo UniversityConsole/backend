@@ -41,6 +41,7 @@ pub(crate) async fn authenticate(
         "Discoverable",
         "LastName",
         "Password",
+        "AccountState",
     ];
     let get_item_input = GetItemInput::builder()
         .table_name(&ctx.accounts_table_name)
@@ -48,6 +49,8 @@ pub(crate) async fn authenticate(
         .consistent_read(true)
         .projection_expression(fields.join(","))
         .build();
+    log::info!("GetItem input: {:?}", &get_item_input);
+
     let user_account = ddb
         .get_item(get_item_input)
         .await
@@ -111,6 +114,8 @@ pub(crate) fn create_access_token(ctx: &Context, user_account: UserAccount) -> j
         last_name: user_account.last_name,
         exp: exp as usize,
     };
+
+    log::info!("Secret: {}", &ctx.access_token_secret);
 
     encode(
         &Header::new(Algorithm::HS512),

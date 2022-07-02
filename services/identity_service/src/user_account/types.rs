@@ -31,7 +31,8 @@ pub struct UserAccount {
     #[builder(default = true)]
     pub discoverable: bool,
 
-    #[builder(default = AccountState::PendingActivation)]
+    #[serde(default)]
+    #[builder(default)]
     pub account_state: AccountState,
 
     #[serde(default)]

@@ -9,15 +9,20 @@ use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
 use frontend::graphql::extension::Authorizer;
 use frontend::integration::identity_service::schema::{
-    AuthenticationOutput, GenerateAccessTokenOutput, GraphQLError, UserAccount,
+    AuthenticationOutput, CreateAccountOutput, CreateAccountParams, GenerateAccessTokenOutput, GraphQLError,
+    UserAccount,
 };
 use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
 use identity_service::pb::identity_service_client::IdentityServiceClient;
-use identity_service::pb::{AuthenticateInput, DescribeAccountInput, GenerateAccessTokenInput, ListAccountsInput};
+use identity_service::pb::{
+    AccountAttributes, AuthenticateInput, CreateAccountInput, DescribeAccountInput, GenerateAccessTokenInput,
+    ListAccountsInput,
+};
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
 use thiserror::Error;
+use tonic::{Code, Status};
 use tracing_futures::Instrument;
 
 #[derive(Debug, Error)]
@@ -48,7 +53,7 @@ async fn main() -> std::result::Result<(), InitServiceError> {
             .configure(configure_service)
             .data(schema.clone())
     })
-    .bind("0.0.0.0:8001")?
+    .bind("0.0.0.0:8080")?
     .run()
     .await
     .map_err(|e| e.into())
@@ -227,6 +232,39 @@ impl Mutation {
         Ok(GenerateAccessTokenOutput {
             access_token: output.access_token,
             refresh_token: output.refresh_token,
+        })
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn create_account(
+        &self,
+        ctx: &Context<'_>,
+        params: CreateAccountParams,
+    ) -> std::result::Result<CreateAccountOutput, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let request = tonic::Request::new(CreateAccountInput {
+            account_attributes: Some(AccountAttributes {
+                email: params.email,
+                password: params.password,
+                first_name: params.first_name,
+                last_name: params.last_name,
+                discoverable: true,
+            }),
+        });
+        let output = identity_service_client
+            .create_account(request)
+            .await
+            .map_err(|e| match e.code() {
+                Code::InvalidArgument => GraphQLError::Operation("Invalid argument.".into()),
+                Code::AlreadyExists => {
+                    GraphQLError::Operation("An account with that email address already exists.".into())
+                }
+                _ => GraphQLError::Internal,
+            })?
+            .into_inner();
+
+        Ok(CreateAccountOutput {
+            account_id: output.account_id,
         })
     }
 }

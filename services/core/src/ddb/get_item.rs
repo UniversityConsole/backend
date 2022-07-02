@@ -9,7 +9,7 @@ use typed_builder::TypedBuilder;
 
 use super::adapter::Adapter;
 
-#[derive(TypedBuilder)]
+#[derive(TypedBuilder, Debug)]
 pub struct GetItemInput {
     #[builder(setter(into))]
     pub table_name: String,
