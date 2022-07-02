@@ -32,6 +32,7 @@ pub fn field_arg_value(input: &str) -> IResult<&str, FieldArgValue> {
         map(bool, FieldArgValue::BoolLiteral),
         map(i64, FieldArgValue::IntegerLiteral),
         map(string_literal, FieldArgValue::StringLiteral),
+        map(identifier, |s| FieldArgValue::Enum(s.to_owned())),
         map(tag("*"), |_| FieldArgValue::Wildcard),
     ))(input)
 }
@@ -98,11 +99,56 @@ pub fn path_set(input: &str) -> IResult<&str, Expression<'_>> {
 
 #[cfg(test)]
 mod test {
+    use rstest::rstest;
+
     use super::*;
 
     #[test]
     fn invalid_path_set() {
         let raw = "foo::";
         assert!(path_set(raw).is_err());
+    }
+
+    #[rstest]
+    #[case("a(b: \"foo\")", FieldArgValue::StringLiteral("foo".to_string()))]
+    #[case("a(b: 10)", FieldArgValue::IntegerLiteral(10))]
+    #[case("a(b: true)", FieldArgValue::BoolLiteral(true))]
+    #[case("a(b: false)", FieldArgValue::BoolLiteral(false))]
+    #[case("a(b: C)", FieldArgValue::Enum("C".to_string()))]
+    #[case("a(b: FOO_BAR)", FieldArgValue::Enum("FOO_BAR".to_string()))]
+    #[case("a(b: *)", FieldArgValue::Wildcard)]
+    fn single_argument(#[case] raw: &str, #[case] expected_field_arg_value: FieldArgValue) {
+        let (_, expr) = path_set(raw).expect("parse should not fail");
+        let Expression::SelectionSet(selection) = expr;
+        let SingularSelectionSet::Explicit(field, _) = selection else { panic!("selection should be explicit") };
+
+        let Field { name, args } = field;
+        assert_eq!(name, "a");
+
+        let args = args.expect("args must not be None");
+        let first_arg = args.first().expect("must have one argument");
+        assert_eq!(first_arg.name, "b");
+        assert_eq!(first_arg.value, expected_field_arg_value);
+    }
+
+    #[test]
+    fn multiple_arguments() {
+        let raw = "a(b: 10, c: true)";
+        let (_, expr) = path_set(raw).expect("parse should not fail");
+        let Expression::SelectionSet(selection) = expr;
+        let SingularSelectionSet::Explicit(field, _) = selection else { panic!("selection should be explicit") };
+
+        let Field { name, args } = field;
+        assert_eq!(name, "a");
+
+        let args = args.expect("args must not be None");
+
+        let first_arg = args.get(0).expect("must have two arguments");
+        assert_eq!(first_arg.name, "b");
+        assert_eq!(first_arg.value, FieldArgValue::IntegerLiteral(10));
+
+        let second_arg = args.get(1).expect("must have two arguments");
+        assert_eq!(second_arg.name, "c");
+        assert_eq!(second_arg.value, FieldArgValue::BoolLiteral(true));
     }
 }

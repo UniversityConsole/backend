@@ -53,6 +53,7 @@ pub enum ArgumentValue {
     StringLiteral(String),
     IntegerLiteral(i64),
     BoolLiteral(bool),
+    Enum(String),
     Wildcard,
 }
 
@@ -387,6 +388,7 @@ impl Display for ArgumentValue {
             ArgumentValue::IntegerLiteral(val) => write!(f, "{}", val)?,
             // FIXME Properly escape characters.
             ArgumentValue::StringLiteral(val) => write!(f, "\"{}\"", val)?,
+            ArgumentValue::Enum(name) => write!(f, "{}", name)?,
             ArgumentValue::Wildcard => write!(f, "*")?,
         };
 

@@ -1,3 +1,4 @@
+use async_graphql_value::value;
 use thiserror::Error;
 
 use super::{parse, types as parser_types, ParseError};
@@ -88,6 +89,7 @@ fn tr_singular_selection_set(
                                         FieldArgValue::BoolLiteral(value) => ArgumentValue::BoolLiteral(value),
                                         FieldArgValue::IntegerLiteral(value) => ArgumentValue::IntegerLiteral(value),
                                         FieldArgValue::StringLiteral(value) => ArgumentValue::StringLiteral(value),
+                                        FieldArgValue::Enum(name) => ArgumentValue::Enum(name),
                                         FieldArgValue::Wildcard => ArgumentValue::Wildcard,
                                     },
                                 },

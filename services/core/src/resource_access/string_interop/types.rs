@@ -29,10 +29,11 @@ pub struct FieldArg<'a> {
     pub value: FieldArgValue,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum FieldArgValue {
     StringLiteral(String),
     IntegerLiteral(i64),
     BoolLiteral(bool),
+    Enum(String),
     Wildcard,
 }

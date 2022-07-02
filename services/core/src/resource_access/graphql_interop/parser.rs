@@ -125,11 +125,12 @@ fn parse_argument_value(name: &str, value: &Value, variables: &Variables) -> Res
             n.as_i64().ok_or(CompileError::UnsupportedNumericLiteral)?,
         )),
         Value::Boolean(b) => Ok(ArgumentValue::BoolLiteral(*b)),
+        Value::Enum(name) => Ok(ArgumentValue::Enum(name.to_string())),
         Value::Variable(var_name) => {
             if let Some(var_value) = variables.get(var_name) {
                 match var_value {
                     ConstValue::Number(_) | ConstValue::String(_) | ConstValue::Boolean(_) => {
-                        parse_argument_value(name, &var_value.clone().into_value(), &variables)
+                        parse_argument_value(name, &var_value.clone().into_value(), variables)
                     }
                     _ => {
                         tracing::debug!(
@@ -240,6 +241,24 @@ mod tests {
         assert_eq!(request.kind, AccessKind::Query);
 
         let expected_paths = ["account(id: *)"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
+    }
+
+    #[test]
+    fn query_with_enum_arg() {
+        use async_graphql_parser::parse_query;
+
+        let document = parse_query("{ foo(bar: BAZ) { doo } }").expect("parse failed");
+        let access_requests =
+            from_document(&document, &Variables::default()).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
+
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Query);
+
+        let expected_paths = ["foo(bar: BAZ)::doo"];
         for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
             assert_eq!(path.to_string(), expected_path.to_string());
         }
