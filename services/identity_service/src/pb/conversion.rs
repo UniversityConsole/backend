@@ -7,11 +7,11 @@ use super::identity_service::AccessRequest;
 
 #[derive(Debug, Error)]
 pub enum AccessRequestParseError {
-    #[error("Path {0} is invalid.")]
-    CompileError(usize),
+    #[error("Path {0} is invalid: {1}.")]
+    CompileError(usize, String),
 
-    #[error("Path {0} has multiple roots.")]
-    MultiRootPath(usize),
+    #[error("Path {0} has multiple roots: {1}.")]
+    MultiRootPath(usize, String),
 }
 
 impl TryFrom<AccessRequest> for service_core::resource_access::AccessRequest {
@@ -23,10 +23,13 @@ impl TryFrom<AccessRequest> for service_core::resource_access::AccessRequest {
 
         let mut paths = Vec::with_capacity(model.paths.len());
         for (idx, path) in model.paths.into_iter().enumerate() {
-            let path_set = from_string(path.as_ref()).map_err(|_| AccessRequestParseError::CompileError(idx))?;
+            let path_set = from_string(path.as_ref()).map_err(|e| {
+                log::error!("Failed to parse path: {}. Error: {:?}", &path, e);
+                AccessRequestParseError::CompileError(idx, path.clone())
+            })?;
             let mut path_nodes = path_set.into_paths();
             if path_nodes.len() != 1 {
-                return Err(AccessRequestParseError::MultiRootPath(idx));
+                return Err(AccessRequestParseError::MultiRootPath(idx, path));
             }
 
             paths.push(path_nodes.pop().unwrap())

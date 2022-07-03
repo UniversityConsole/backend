@@ -22,8 +22,8 @@ pub enum AuthorizeError {
     #[error("Account not found.")]
     NotFound,
 
-    #[error("Resource path {0} is invalid.")]
-    InvalidResourcePath(usize),
+    #[error("Resource path at index {0} is invalid: {1}.")]
+    InvalidResourcePath(usize, String),
 }
 
 pub(crate) async fn authorize(
@@ -49,8 +49,8 @@ pub(crate) async fn authorize(
     };
 
     let access_request: AccessRequest = input.access_request.clone().unwrap().try_into().map_err(|e| match e {
-        AccessRequestParseError::CompileError(idx) => EndpointError::operation(InvalidResourcePath(idx)),
-        AccessRequestParseError::MultiRootPath(idx) => EndpointError::operation(InvalidResourcePath(idx)),
+        AccessRequestParseError::CompileError(idx, path) => EndpointError::operation(InvalidResourcePath(idx, path)),
+        AccessRequestParseError::MultiRootPath(idx, path) => EndpointError::operation(InvalidResourcePath(idx, path)),
     })?;
 
     let allowed_paths =
