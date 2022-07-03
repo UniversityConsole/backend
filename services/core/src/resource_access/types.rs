@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use async_graphql_parser::types::OperationType;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AccessRequest {
     pub kind: AccessKind,
     pub paths: Vec<PathNode>,
@@ -692,9 +692,12 @@ mod superset_tests {
     #[case(ArgumentValue::Wildcard, ArgumentValue::StringLiteral("abc".to_owned()), true)]
     #[case(ArgumentValue::Wildcard, ArgumentValue::IntegerLiteral(12), true)]
     #[case(ArgumentValue::Wildcard, ArgumentValue::BoolLiteral(true), true)]
+    #[case(ArgumentValue::Wildcard, ArgumentValue::Enum("A".to_string()), true)]
     #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::Wildcard, false)]
     #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::BoolLiteral(true), false)]
     #[case(ArgumentValue::BoolLiteral(false), ArgumentValue::BoolLiteral(false), true)]
+    #[case(ArgumentValue::Enum("A".to_string()), ArgumentValue::Enum("B".to_string()), false)]
+    #[case(ArgumentValue::Enum("A".to_string()), ArgumentValue::Enum("A".to_string()), true)]
     fn argument_value(#[case] a: ArgumentValue, #[case] b: ArgumentValue, #[case] expected: bool) {
         assert_eq!(a.is_superset_of(&b), expected);
     }

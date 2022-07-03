@@ -129,7 +129,7 @@ fn parse_argument_value(name: &str, value: &Value, variables: &Variables) -> Res
         Value::Variable(var_name) => {
             if let Some(var_value) = variables.get(var_name) {
                 match var_value {
-                    ConstValue::Number(_) | ConstValue::String(_) | ConstValue::Boolean(_) => {
+                    ConstValue::Number(_) | ConstValue::String(_) | ConstValue::Boolean(_) | ConstValue::Enum(_) => {
                         parse_argument_value(name, &var_value.clone().into_value(), variables)
                     }
                     _ => {
@@ -157,6 +157,7 @@ impl CompileError {
 #[cfg(test)]
 mod tests {
     use async_graphql_value::Name;
+    use serde_json::json;
 
     use super::*;
 
@@ -224,29 +225,6 @@ mod tests {
     }
 
     #[test]
-    fn query_with_unsupported_variable_type() {
-        use async_graphql_parser::parse_query;
-
-        let document = parse_query("{ account(id: $id) }").expect("parse failed");
-        let variables = {
-            let mut v = Variables::default();
-            // Floats are unsupported.
-            v.insert(Name::new("id"), ConstValue::Enum(Name::new("TEST")));
-            v
-        };
-        let access_requests = from_document(&document, &variables).expect("failed compiling access requests");
-        assert_eq!(access_requests.len(), 1);
-
-        let request = access_requests.first().unwrap();
-        assert_eq!(request.kind, AccessKind::Query);
-
-        let expected_paths = ["account(id: *)"];
-        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
-            assert_eq!(path.to_string(), expected_path.to_string());
-        }
-    }
-
-    #[test]
     fn query_with_enum_arg() {
         use async_graphql_parser::parse_query;
 
@@ -259,6 +237,26 @@ mod tests {
         assert_eq!(request.kind, AccessKind::Query);
 
         let expected_paths = ["foo(bar: BAZ)::doo"];
+        for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
+            assert_eq!(path.to_string(), expected_path.to_string());
+        }
+    }
+
+    #[test]
+    fn query_with_enum_arg_and_var() {
+        use async_graphql_parser::parse_query;
+
+        let document = parse_query("mutation($b: String!) { foo(b: $b, bar: BAZ) }").expect("parse failed");
+        let variables = Variables::from_json(json!({
+            "b": "var"
+        }));
+        let access_requests = from_document(&document, &variables).expect("failed compiling access requests");
+        assert_eq!(access_requests.len(), 1);
+
+        let request = access_requests.first().unwrap();
+        assert_eq!(request.kind, AccessKind::Mutation);
+
+        let expected_paths = ["foo(b: \"var\", bar: BAZ)"];
         for (path, expected_path) in std::iter::zip(&request.paths, expected_paths) {
             assert_eq!(path.to_string(), expected_path.to_string());
         }

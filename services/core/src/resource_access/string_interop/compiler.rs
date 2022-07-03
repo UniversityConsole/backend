@@ -141,4 +141,26 @@ mod tests {
         assert_eq!(field.as_str(), "b");
         assert!(args.is_empty());
     }
+
+    #[test]
+    fn selection_with_enum_param() {
+        let raw = "updateAccountState(accountId: \"e7c7bfc8-9008-4e0d-90a6-8113bca847a2\", state: ACTIVE)";
+        let roots = from_string(raw).expect("parse failed").into_paths();
+        let root = roots.first().expect("path_set empty");
+
+        let Segment::Named(field, args) = &root.segment else { panic!("segment is not named") };
+        assert_eq!(field.as_str(), "updateAccountState");
+        assert_eq!(args.len(), 2);
+
+        let first_arg = args.get(&"accountId".to_owned()).expect("argument must exist");
+        assert_eq!(first_arg.name.as_str(), "accountId");
+        assert_eq!(
+            first_arg.value,
+            ArgumentValue::StringLiteral("e7c7bfc8-9008-4e0d-90a6-8113bca847a2".to_owned())
+        );
+
+        let second_arg = args.get(&"state".to_owned()).expect("argument must exist");
+        assert_eq!(second_arg.name.as_str(), "state");
+        assert_eq!(second_arg.value, ArgumentValue::Enum("ACTIVE".to_owned()));
+    }
 }
