@@ -9,15 +9,15 @@ use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
 use frontend::graphql::extension::Authorizer;
 use frontend::integration::identity_service::schema::{
-    AuthenticationOutput, CreateAccountOutput, CreateAccountParams, GenerateAccessTokenOutput, GraphQLError,
-    UserAccount,
+    AccountState, AuthenticationOutput, CreateAccountOutput, CreateAccountParams, GenerateAccessTokenOutput,
+    GraphQLError, UserAccount,
 };
 use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
 use identity_service::pb::identity_service_client::IdentityServiceClient;
 use identity_service::pb::{
     AccountAttributes, AuthenticateInput, CreateAccountInput, DescribeAccountInput, GenerateAccessTokenInput,
-    ListAccountsInput,
+    ListAccountsInput, UpdateAccountStateInput,
 };
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
@@ -266,6 +266,31 @@ impl Mutation {
         Ok(CreateAccountOutput {
             account_id: output.account_id,
         })
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn update_account_state(
+        &self,
+        ctx: &Context<'_>,
+        account_id: String,
+        state: AccountState,
+    ) -> std::result::Result<bool, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        let request = tonic::Request::new(UpdateAccountStateInput {
+            account_id,
+            account_state: identity_service::pb::AccountState::from(state) as i32,
+        });
+        identity_service_client
+            .update_account_state(request)
+            .await
+            .map_err(|e| match e.code() {
+                Code::InvalidArgument => GraphQLError::Operation("Invalid argument.".into()),
+                Code::NotFound => GraphQLError::Operation("Account not found.".into()),
+                _ => GraphQLError::Internal,
+            })?
+            .into_inner();
+
+        Ok(true)
     }
 }
 

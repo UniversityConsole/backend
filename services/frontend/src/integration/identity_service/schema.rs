@@ -50,6 +50,14 @@ pub struct CreateAccountOutput {
     pub account_id: String,
 }
 
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[graphql(remote = "identity_service::pb::AccountState")]
+pub enum AccountState {
+    PendingActivation,
+    Active,
+    Deactivated,
+}
+
 #[derive(Debug, Error)]
 pub enum GraphQLError {
     #[error("Permission denied.")]
@@ -61,7 +69,6 @@ pub enum GraphQLError {
     #[error(transparent)]
     Operation(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
-
 
 #[Object]
 impl UserAccount {
