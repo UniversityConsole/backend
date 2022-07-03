@@ -24,9 +24,9 @@ impl<E: OperationError> OperationError for EndpointError<E> {
     }
 }
 
-impl<E: OperationError> Into<Status> for EndpointError<E> {
-    fn into(self) -> Status {
-        Status::new(self.code(), self.to_string())
+impl<E: OperationError> From<EndpointError<E>> for Status {
+    fn from(e: EndpointError<E>) -> Self {
+        Status::new(e.code(), e.to_string())
     }
 }
 
