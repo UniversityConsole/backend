@@ -9,15 +9,16 @@ use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use frontend::actix_middleware::request_id::RequestIdHeader;
 use frontend::graphql::extension::Authorizer;
 use frontend::integration::identity_service::schema::{
-    AccountState, AuthenticationOutput, CreateAccountOutput, CreateAccountParams, GenerateAccessTokenOutput,
-    GraphQLError, UserAccount,
+    AccessKind, AccountState, AuthenticationOutput, CreateAccountOutput, CreateAccountParams,
+    GenerateAccessTokenOutput, GraphQLError, InputPolicyStatement, RenderedPolicyStatement, UserAccount,
 };
 use frontend::integration::identity_service::IdentityServiceRef;
 use frontend::schema::authorization::Authorization;
+use futures_util::SinkExt;
 use identity_service::pb::identity_service_client::IdentityServiceClient;
 use identity_service::pb::{
     AccountAttributes, AuthenticateInput, CreateAccountInput, DescribeAccountInput, GenerateAccessTokenInput,
-    ListAccountsInput, UpdateAccountStateInput,
+    ListAccountsInput, PermissionsDocument, PolicyStatement, UpdateAccountStateInput, UpdatePermissionsInput,
 };
 use service_core::simple_err_map;
 use service_core::telemetry::logging::{init_subscriber, make_subscriber};
@@ -282,6 +283,43 @@ impl Mutation {
         });
         identity_service_client
             .update_account_state(request)
+            .await
+            .map_err(|e| match e.code() {
+                Code::InvalidArgument => GraphQLError::Operation("Invalid argument.".into()),
+                Code::NotFound => GraphQLError::Operation("Account not found.".into()),
+                _ => GraphQLError::Internal,
+            })?
+            .into_inner();
+
+        Ok(true)
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn update_permissions(
+        &self,
+        ctx: &Context<'_>,
+        account_id: String,
+        policy_statements: Vec<InputPolicyStatement>,
+    ) -> std::result::Result<bool, GraphQLError> {
+        let mut identity_service_client = ctx.data_unchecked::<IdentityServiceRef>().clone();
+        // FIXME: Implement proper conversion functions.
+        let request = tonic::Request::new(UpdatePermissionsInput {
+            account_id,
+            permissions_document: Some(PermissionsDocument {
+                statements: policy_statements
+                    .into_iter()
+                    .map(|statement| PolicyStatement {
+                        access_kind: match statement.access_kind {
+                            AccessKind::Query => identity_service::pb::policy_statement::AccessKind::Query as i32,
+                            AccessKind::Mutation => identity_service::pb::policy_statement::AccessKind::Mutation as i32,
+                        },
+                        paths: statement.paths,
+                    })
+                    .collect(),
+            }),
+        });
+        identity_service_client
+            .update_permissions(request)
             .await
             .map_err(|e| match e.code() {
                 Code::InvalidArgument => GraphQLError::Operation("Invalid argument.".into()),

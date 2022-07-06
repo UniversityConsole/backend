@@ -19,6 +19,12 @@ pub struct RenderedPolicyStatement {
     pub paths: Vec<String>,
 }
 
+#[derive(Clone, InputObject)]
+pub struct InputPolicyStatement {
+    pub access_kind: AccessKind,
+    pub paths: Vec<String>,
+}
+
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum AccessKind {
     Query,
