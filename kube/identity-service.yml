@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: identity-service
+    labels:
+        app: identity-service
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: identity-service
+    template:
+        metadata:
+            labels:
+                app: identity-service
+        spec:
+            imagePullSecrets:
+                - name: regcred
+            containers:
+                - name: identity-service
+                  image: vicbarbu/uc-identity-service:dev
+                  imagePullPolicy: Always
+                  command:
+                      - /uc/bin/identity_service
+                  ports:
+                      - containerPort: 8080
+                        name: grpc
+                  env:
+                      - name: RUST_BACKTRACE
+                        value: '1'
+                      - name: AWS_REGION
+                        value: eu-west-1
+                      - name: AWS_ACCESS_KEY_ID
+                        valueFrom:
+                            secretKeyRef:
+                                name: identity-service.iam-user
+                                key: access-key-id
+                      - name: AWS_SECRET_ACCESS_KEY
+                        valueFrom:
+                            secretKeyRef:
+                                name: identity-service.iam-user
+                                key: secret-access-key
+                      - name: ACCOUNTS_TABLE_NAME
+                        value: uc-user-accounts
+                      - name: ACCESS_TOKEN_SECRET
+                        valueFrom:
+                            secretKeyRef:
+                                name: identity-service.access-token-secret
+                                key: value
+                      - name: REFRESH_TOKEN_SECRET
+                        valueFrom:
+                            secretKeyRef:
+                                name: identity-service.refresh-token-secret
+                                key: value
+                      - name: REFRESH_TOKEN_CACHE
+                        value: 'memcache://refresh-token-cache:11211?timeout=10&tcp_nodelay=true'
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: identity-service
+spec:
+    selector:
+        app: identity-service
+    ports:
+        - protocol: TCP
+          port: 8081
+          targetPort: grpc

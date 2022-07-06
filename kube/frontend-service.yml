@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: frontend-service
+    labels:
+        app: frontend-service
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: frontend-service
+    template:
+        metadata:
+            labels:
+                app: frontend-service
+        spec:
+            imagePullSecrets:
+                - name: regcred
+            containers:
+                - name: frontend-service
+                  image: vicbarbu/uc-frontend
+                  imagePullPolicy: IfNotPresent
+                  command:
+                      - /uc/bin/frontend
+                  ports:
+                      - containerPort: 8080
+                        name: frontend-http
+                  env:
+                      - name: RUST_BACKTRACE
+                        value: '1'
+                      - name: IDENTITY_SERVICE_ENDPOINT
+                        value: http://identity-service:8081
+                      - name: ACCESS_TOKEN_SECRET
+                        valueFrom:
+                            secretKeyRef:
+                                name: identity-service.access-token-secret
+                                key: value
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: frontend-service
+    annotations:
+        service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+        service.beta.kubernetes.io/do-loadbalancer-disable-lets-encrypt-dns-records: "false"
+
+spec:
+    type: LoadBalancer
+    selector:
+        app: frontend-service
+    ports:
+        - protocol: TCP
+          name: http
+          port: 80
+          targetPort: frontend-http
